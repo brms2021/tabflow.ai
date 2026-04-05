@@ -1,0 +1,20 @@
+[project]
+name = "tab-ripper"
+version = "0.1.0"
+description = "Isolate lead guitar from a mix and generate tablature"
+requires-python = ">=3.10"
+dependencies = [
+    "demucs",
+    "basic-pitch",
+    "pretty-midi",
+    "librosa",
+    "soundfile",
+    "numpy",
+    "click",
+    "PyMuPDF",
+    "anthropic",
+    "python-dotenv",
+]
+
+[project.scripts]
+tab-ripper = "tab_ripper.cli:main"

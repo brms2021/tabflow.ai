@@ -1,0 +1,27 @@
+# Environment & secrets
+.env
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+
+# Output
+tab-ripper-output/
+
+# Media files (too large for repo)
+*.mp3
+*.wav
+*.flac
+*.pdf
+*.png
+
+# OS
+Thumbs.db
+.DS_Store
