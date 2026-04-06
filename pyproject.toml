@@ -4,17 +4,33 @@ version = "0.1.0"
 description = "Isolate lead guitar from a mix and generate tablature"
 requires-python = ">=3.10"
 dependencies = [
-    "demucs",
-    "basic-pitch",
-    "pretty-midi",
-    "librosa",
-    "soundfile",
-    "numpy",
-    "click",
-    "PyMuPDF",
-    "anthropic",
-    "python-dotenv",
+    "demucs>=4.0.1",
+    "basic-pitch>=0.4.0",
+    "pretty-midi>=0.2.11",
+    "librosa>=0.11.0",
+    "soundfile>=0.13.0",
+    "numpy>=2.0",
+    "click>=8.0",
+    "PyMuPDF>=1.23",
+    "anthropic>=0.80.0",
+    "python-dotenv>=1.0",
+    "torch>=2.6.0,<2.7",
+    "torchaudio>=2.6.0,<2.7",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
 
 [project.scripts]
 tab-ripper = "tab_ripper.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

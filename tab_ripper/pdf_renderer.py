@@ -11,7 +11,7 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
-from .tabber import TabEvent, STANDARD_TUNING, STRING_NAMES
+from .tabber import STANDARD_TUNING, STRING_NAMES, TabEvent
 
 # Technique abbreviations for PDF labels
 TECHNIQUE_LABELS = {
@@ -87,10 +87,6 @@ def render_pdf(
             label = TECHNIQUE_LABELS.get(tech)
             if label:
                 technique_map[ann.event_index] = label
-
-    # Tag each event with its original index so we can look up annotations
-    # after splitting into systems (systems contain slices of original events)
-    event_indices = list(range(len(events)))
 
     # Split events into systems based on available width
     systems = _split_into_systems(events, usable_width)

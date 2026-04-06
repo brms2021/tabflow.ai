@@ -5,9 +5,12 @@ The 'other' stem captures guitar, keys, synths, etc.
 With htdemucs_6s model, a dedicated 'guitar' stem is available.
 """
 
+import logging
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def separate(
@@ -44,12 +47,12 @@ def separate(
     if two_stems:
         cmd.extend(["--two-stems", two_stems])
 
-    print(f"[separator] Running Demucs ({model})...")
-    print(f"[separator] Command: {' '.join(cmd)}")
+    logger.info("Running Demucs (%s)...", model)
+    logger.debug("Command: %s", " ".join(cmd))
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"[separator] STDERR: {result.stderr}")
+        logger.error("Demucs STDERR: %s", result.stderr)
         raise RuntimeError(f"Demucs failed (exit {result.returncode}): {result.stderr}")
 
     # Demucs outputs to: output_dir / model / track_name / stem.wav
@@ -67,7 +70,7 @@ def separate(
     for wav_file in stems_dir.glob("*.wav"):
         stems[wav_file.stem] = wav_file
 
-    print(f"[separator] Stems extracted: {list(stems.keys())}")
+    logger.info("Stems extracted: %s", list(stems.keys()))
     return stems
 
 
@@ -79,6 +82,6 @@ def get_guitar_stem(stems: dict[str, Path]) -> Path:
     if "guitar" in stems:
         return stems["guitar"]
     if "other" in stems:
-        print("[separator] No dedicated guitar stem — using 'other' (guitar + keys + etc.)")
+        logger.warning("No dedicated guitar stem — using 'other' (guitar + keys + etc.)")
         return stems["other"]
     raise KeyError(f"No guitar-like stem found. Available: {list(stems.keys())}")

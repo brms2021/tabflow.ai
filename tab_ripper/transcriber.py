@@ -4,9 +4,12 @@ Converts an audio signal (ideally an isolated instrument stem)
 into MIDI note events with onset times, durations, and pitches.
 """
 
+import logging
 from pathlib import Path
 
 import pretty_midi
+
+logger = logging.getLogger(__name__)
 
 
 def transcribe(
@@ -39,7 +42,7 @@ def transcribe(
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    print(f"[transcriber] Running Basic Pitch on {audio_path.name}...")
+    logger.info("Running Basic Pitch on %s...", audio_path.name)
 
     predict_kwargs = dict(
         onset_threshold=onset_threshold,
@@ -54,12 +57,12 @@ def transcribe(
     model_output, midi_data, note_events = predict(str(audio_path), **predict_kwargs)
 
     note_count = sum(len(inst.notes) for inst in midi_data.instruments)
-    print(f"[transcriber] Detected {note_count} notes")
+    logger.info("Detected %d notes", note_count)
 
     if midi_output_path:
         midi_output_path = Path(midi_output_path)
         midi_output_path.parent.mkdir(parents=True, exist_ok=True)
         midi_data.write(str(midi_output_path))
-        print(f"[transcriber] MIDI saved to {midi_output_path}")
+        logger.info("MIDI saved to %s", midi_output_path)
 
     return midi_data, note_events

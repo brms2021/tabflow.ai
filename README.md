@@ -1,5 +1,7 @@
 # tab-ripper
 
+[![CI](https://github.com/brms2021/tabflow.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/brms2021/tabflow.ai/actions/workflows/ci.yml)
+
 Isolate lead guitar from a full mix and generate ASCII tablature.
 
 ## Pipeline

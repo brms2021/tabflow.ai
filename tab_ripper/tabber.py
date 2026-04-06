@@ -11,10 +11,13 @@ optimal fret assignments that minimize hand movement and stay in
 natural playing positions.
 """
 
+import logging
 from dataclasses import dataclass
 from itertools import product
 
 import pretty_midi
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Tuning presets
@@ -222,8 +225,10 @@ def filter_notes(
 
     notes.sort(key=lambda n: n.start)
 
-    print(f"[filter] {original_count} -> amp:{after_amp} range:{after_range} "
-          f"short:{after_short} dedup:{after_dedup} cap:{len(notes)}")
+    logger.info(
+        "%d -> amp:%d range:%d short:%d dedup:%d cap:%d",
+        original_count, after_amp, after_range, after_short, after_dedup, len(notes),
+    )
 
     return notes
 

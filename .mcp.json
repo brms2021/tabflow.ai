@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "clearlaunch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "clearlaunch-mcp"
+      ],
+      "env": {
+        "CLEARLAUNCH_URL": "http://localhost:4444",
+        "CLEARLAUNCH_CLIENT_ID": "cl_conn_c3e95870ed0afd94a2c4c299dbf8d48d",
+        "CLEARLAUNCH_CLIENT_SECRET": "cl_sec_ffd7d3ba7055688826be40701cfca464ad257d8f5e5b7eee9d15fa4f094ef5a8",
+        "CLEARLAUNCH_BOARD_ID": "d16d2cba-c430-4b7a-8b2c-27c2b06674b7"
+      }
+    }
+  }
+}

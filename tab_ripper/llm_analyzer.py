@@ -8,12 +8,17 @@ Works in phrases (groups of notes separated by pauses) for focused analysis.
 """
 
 import json
+import logging
 import os
+import re
+import time
 from dataclasses import dataclass
 
 import pretty_midi
 
-from .tabber import TabEvent, TabNote, NoteEvent, STANDARD_TUNING, pitch_to_fret_options
+from .tabber import STANDARD_TUNING, TabEvent, TabNote
+
+logger = logging.getLogger(__name__)
 
 # Notes closer than this are in the same phrase
 PHRASE_PAUSE_THRESHOLD = 0.4  # seconds
@@ -110,11 +115,55 @@ Your task:
    - Avoids unrealistic position jumps
    ...then suggest the correction.
 
-Respond with ONLY a raw JSON array (no markdown, no explanation). Each element:
+IMPORTANT: Respond with ONLY a raw JSON array. No markdown fences. No explanation text.
+Each element must be exactly this shape:
 {{"seq": 0, "technique": "normal", "suggested_string": null, "suggested_fret": null, "reason": null}}
 
-Return one object per sequence number [0..N-1]. For multi-note events (chords), target the
-highest pitched note. If no position change is needed, set suggested_string and suggested_fret to null."""
+Return one object per sequence number [0..{len(phrase_lines)-1}]. For multi-note events (chords), target the
+highest pitched note. If no position change is needed, set suggested_string and suggested_fret to null.
+
+Begin your response with [ and end with ]. Nothing else."""
+
+
+def _parse_json_response(raw: str) -> list[dict] | None:
+    """Extract a JSON array from an LLM response, handling various formats.
+
+    Handles: raw JSON, markdown code fences, preamble text, and empty responses.
+    Returns None if no valid JSON array can be extracted.
+    """
+    if not raw:
+        return None
+
+    # Strategy 1: Try direct parse (ideal case — model followed instructions)
+    try:
+        result = json.loads(raw)
+        if isinstance(result, list):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Strip markdown code fences
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
+    if fence_match:
+        try:
+            result = json.loads(fence_match.group(1).strip())
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Find [ ... ] bounds in the text
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start != -1 and end > start:
+        try:
+            result = json.loads(raw[start:end + 1])
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return None
 
 
 def analyze_and_refine(
@@ -148,7 +197,7 @@ def analyze_and_refine(
 
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
-        print("[llm] No ANTHROPIC_API_KEY found — skipping LLM analysis")
+        logger.warning("No ANTHROPIC_API_KEY found — skipping LLM analysis")
         return events, []
 
     client = anthropic.Anthropic(api_key=key)
@@ -167,43 +216,57 @@ def analyze_and_refine(
 
     phrases = split_into_phrases(refined)
     if max_phrases is not None and len(phrases) > max_phrases:
-        print(f"[llm] Capping to first {max_phrases} of {len(phrases)} phrases")
+        logger.info("Capping to first %d of %d phrases", max_phrases, len(phrases))
         phrases = phrases[:max_phrases]
     all_annotations: list[TechniqueAnnotation] = []
+    skipped = 0
 
-    print(f"[llm] Analyzing {len(phrases)} phrases ({len(events)} events) with {model}...")
+    logger.info("Analyzing %d phrases (%d events) with %s...", len(phrases), len(events), model)
 
     for phrase_num, phrase_indices in enumerate(phrases):
         phrase_events = refined
         phrase_lines = _events_to_prompt_lines(phrase_events, phrase_indices, tuning)
         prompt = _build_analysis_prompt(phrase_lines, tuning, string_names)
 
-        try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = response.content[0].text.strip()
+        suggestions = None
+        last_err = None
+        for attempt in range(3):
+            try:
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = response.content[0].text.strip()
+                suggestions = _parse_json_response(raw)
+                if suggestions is not None:
+                    break
+                last_err = "no valid JSON in response"
+            except anthropic.RateLimitError as e:
+                last_err = e
+            except anthropic.InternalServerError as e:
+                last_err = e
+            except anthropic.APIConnectionError as e:
+                last_err = e
+            except Exception as e:
+                # Non-retryable (auth errors, bad request, etc.)
+                logger.error("Phrase %d/%d: error — %s", phrase_num+1, len(phrases), e)
+                skipped += 1
+                break
+            else:
+                # _parse_json_response returned None, retry with backoff
+                pass
 
-            # Strip markdown code fences if present
-            if "```" in raw:
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
+            if attempt < 2:
+                wait = 2 ** attempt  # 1s, 2s
+                time.sleep(wait)
+        else:
+            if suggestions is None:
+                logger.warning("Phrase %d/%d: skipped after 3 attempts — %s", phrase_num+1, len(phrases), last_err)
+                skipped += 1
+                continue
 
-            # Find the JSON array bounds
-            start = raw.find("[")
-            end = raw.rfind("]")
-            if start == -1 or end == -1:
-                raise ValueError(f"No JSON array found in response: {raw[:200]!r}")
-            raw = raw[start:end + 1]
-
-            suggestions = json.loads(raw)
-
-        except Exception as e:
-            print(f"[llm] Phrase {phrase_num+1}: error — {e}")
+        if suggestions is None:
             continue
 
         # Apply suggestions
@@ -246,9 +309,11 @@ def analyze_and_refine(
                     annotation.suggested_fret = new_fret
                     if old_str != new_string or old_fret != new_fret:
                         reason = suggestion.get("reason", "")
-                        print(f"[llm] evt[{evt_idx}] {technique}: string {old_str+1}→{new_string+1}, fret {old_fret}→{new_fret} ({reason})")
+                        logger.info("evt[%d] %s: string %d→%d, fret %d→%d (%s)", evt_idx, technique, old_str+1, new_string+1, old_fret, new_fret, reason)
 
             all_annotations.append(annotation)
 
-    print(f"[llm] Analysis complete. {len(all_annotations)} annotations.")
+    if skipped:
+        logger.warning("%d/%d phrases skipped due to errors", skipped, len(phrases))
+    logger.info("Analysis complete. %d annotations from %d phrases.", len(all_annotations), len(phrases) - skipped)
     return refined, all_annotations

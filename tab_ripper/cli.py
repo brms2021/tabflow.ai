@@ -6,19 +6,35 @@ Usage:
     tab-ripper path/to/song.mp3 --model htdemucs_6s --resolution 0.08
 """
 
+import logging
 from pathlib import Path
 
 import click
 from dotenv import load_dotenv
 
-load_dotenv()
-
-from .separator import separate, get_guitar_stem
-from .transcriber import transcribe
+from .separator import get_guitar_stem, separate
 from .tabber import (
-    assign_frets, render_ascii_tab, format_tab_header,
-    parse_tuning, tuning_freq_range, filter_notes, TUNING_PRESETS,
+    assign_frets,
+    filter_notes,
+    format_tab_header,
+    parse_tuning,
+    render_ascii_tab,
+    tuning_freq_range,
 )
+from .transcriber import transcribe
+
+load_dotenv()
+logger = logging.getLogger("tab_ripper")
+
+
+def _setup_logging(verbose: bool) -> None:
+    """Configure logging for the entire tab_ripper package."""
+    level = logging.DEBUG if verbose else logging.INFO
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("[%(name)s] %(message)s"))
+    root = logging.getLogger("tab_ripper")
+    root.setLevel(level)
+    root.addHandler(handler)
 
 
 @click.command()
@@ -52,6 +68,8 @@ from .tabber import (
               help="Skip Demucs and use the input file directly (if already isolated).")
 @click.option("--width", "-w", default=80, type=int,
               help="Tab line width in characters.")
+@click.option("--verbose", "-v", is_flag=True,
+              help="Enable debug logging.")
 def main(
     audio_file: Path,
     output: Path | None,
@@ -68,17 +86,20 @@ def main(
     llm_max_phrases: int,
     skip_separation: bool,
     width: int,
+    verbose: bool,
 ):
     """Rip guitar tablature from an audio file.
 
     Takes a full mix (MP3, WAV, FLAC, etc.), isolates the guitar,
     transcribes to MIDI, and generates ASCII tablature + PDF.
     """
+    _setup_logging(verbose)
+
     # Parse tuning
     tuning_pitches, string_names = parse_tuning(tuning)
     num_strings = len(tuning_pitches)
     min_freq, max_freq = tuning_freq_range(tuning_pitches)
-    print(f"[tab-ripper] Tuning: {' '.join(string_names)} ({num_strings}-string)")
+    logger.info("Tuning: %s (%d-string)", " ".join(string_names), num_strings)
 
     if output is None:
         output = audio_file.parent / "tab-ripper-output"
@@ -88,16 +109,16 @@ def main(
 
     # --- Step 1: Source separation ---
     if skip_separation:
-        print(f"\n[tab-ripper] Skipping separation — using {audio_file.name} directly")
+        logger.info("Skipping separation — using %s directly", audio_file.name)
         guitar_path = audio_file
     else:
-        print(f"\n[tab-ripper] Step 1/4: Separating stems from {audio_file.name}...")
+        logger.info("Step 1/4: Separating stems from %s...", audio_file.name)
         stems = separate(audio_file, output_dir=output / "stems", model=model)
         guitar_path = get_guitar_stem(stems)
-        print(f"[tab-ripper] Guitar stem: {guitar_path}")
+        logger.info("Guitar stem: %s", guitar_path)
 
     # --- Step 2: Transcribe to MIDI ---
-    print(f"\n[tab-ripper] Step 2/4: Transcribing guitar to MIDI...")
+    logger.info("Step 2/4: Transcribing guitar to MIDI...")
     midi_path = output / f"{track_name}.mid"
     midi_data, note_events = transcribe(
         guitar_path,
@@ -109,23 +130,23 @@ def main(
     )
 
     # --- Step 3: Filter notes ---
-    print(f"\n[tab-ripper] Step 3/4: Filtering notes...")
+    logger.info("Step 3/4: Filtering notes...")
     filtered_notes = filter_notes(
         note_events,
         tuning=tuning_pitches,
         amplitude_threshold=amplitude_threshold,
         min_duration_ms=min_note_length,
     )
-    print(f"[tab-ripper] {len(filtered_notes)} notes after filtering")
+    logger.info("%d notes after filtering", len(filtered_notes))
 
     # --- Step 4a: Assign frets (Viterbi) ---
-    print(f"\n[tab-ripper] Step 4/5: Assigning fret positions (Viterbi)...")
+    logger.info("Step 4/5: Assigning fret positions (Viterbi)...")
     events = assign_frets(filtered_notes, tuning=tuning_pitches)
 
     # --- Step 4b: LLM technique analysis ---
     annotations = None
     if llm:
-        print(f"\n[tab-ripper] Step 4b/5: Refining with LLM technique analysis...")
+        logger.info("Step 4b/5: Refining with LLM technique analysis...")
         from .llm_analyzer import analyze_and_refine
         events, annotations = analyze_and_refine(
             events,
@@ -136,11 +157,10 @@ def main(
         )
 
     # --- Step 5: Generate tablature ---
-    print(f"\n[tab-ripper] Step {'5' if llm else '4'}/{'5' if llm else '4'}: Generating tablature...")
+    logger.info("Step 5/5: Generating tablature...")
 
     note_count = sum(len(e.notes) for e in events)
     duration = max(e.time for e in events) if events else 0.0
-    step_total = 5 if llm else 4
 
     header = format_tab_header(
         track_name, note_count, duration,
@@ -157,8 +177,8 @@ def main(
     tab_path = output / f"{track_name}.tab.txt"
     tab_path.write_text(full_tab)
 
-    # Print to console
-    print(f"\n{full_tab}")
+    # Print tab to console
+    click.echo(f"\n{full_tab}")
 
     # Generate PDF
     pdf_path = None
@@ -172,15 +192,15 @@ def main(
             string_names=string_names,
             annotations=annotations,
         )
-        print(f"[tab-ripper] PDF saved to {pdf_path}")
+        logger.info("PDF saved to %s", pdf_path)
 
-    print(f"\n[tab-ripper] Done!")
-    print(f"  MIDI:  {midi_path}")
-    print(f"  Tab:   {tab_path}")
+    click.echo("\nDone!")
+    click.echo(f"  MIDI:  {midi_path}")
+    click.echo(f"  Tab:   {tab_path}")
     if pdf_path:
-        print(f"  PDF:   {pdf_path}")
+        click.echo(f"  PDF:   {pdf_path}")
     if not skip_separation:
-        print(f"  Stems: {output / 'stems'}")
+        click.echo(f"  Stems: {output / 'stems'}")
 
 
 if __name__ == "__main__":
