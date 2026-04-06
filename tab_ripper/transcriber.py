@@ -83,7 +83,11 @@ def _transcribe_basic_pitch(
     maximum_frequency: float | None = None,
 ) -> tuple[pretty_midi.PrettyMIDI, list[tuple]]:
     """Transcribe using Spotify's Basic Pitch (monophonic, fast)."""
-    from basic_pitch.inference import predict
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*Coremltools.*|.*tflite.*|.*Tensorflow.*")
+        from basic_pitch.inference import predict
 
     logger.info("Running Basic Pitch on %s...", audio_path.name)
 
