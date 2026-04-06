@@ -12,6 +12,28 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_FORMATS = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".opus", ".wma", ".aac"}
+
+
+def check_audio_format(audio_path: str | Path) -> Path:
+    """Verify the audio file format is supported.
+
+    Args:
+        audio_path: Path to the audio file.
+
+    Returns:
+        Resolved Path to the audio file.
+
+    Raises:
+        ValueError: If the file format is not supported.
+    """
+    audio_path = Path(audio_path).resolve()
+    ext = audio_path.suffix.lower()
+    if ext not in SUPPORTED_FORMATS:
+        raise ValueError(f"Unsupported audio format '{ext}'. Supported: {', '.join(sorted(SUPPORTED_FORMATS))}")
+    logger.debug("Audio format: %s", ext)
+    return audio_path
+
 
 def separate(
     audio_path: str | Path,

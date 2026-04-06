@@ -312,17 +312,22 @@ def _config_center(config: tuple[tuple[int, int], ...]) -> float:
 
 
 def _config_cost(config: tuple[tuple[int, int], ...]) -> float:
-    """Internal cost of a single configuration (fret span penalty)."""
+    """Internal cost of a single configuration (fret span + position penalty)."""
     frets = [f for _, f in config if f > 0]
     if not frets:
         return 0.0
     span = max(frets) - min(frets)
+    cost = 0.0
     if span <= 4:
-        return 0.0
+        cost = 0.0
     elif span == 5:
-        return 5.0
+        cost = 5.0
     else:
-        return span * 10.0
+        cost = span * 10.0
+    # Mild preference for lower/open positions (natural first position playing)
+    avg_fret = sum(f for _, f in config) / len(config)
+    cost += avg_fret * 0.3
+    return cost
 
 
 def _transition_cost(
@@ -352,14 +357,22 @@ def _transition_cost(
         shift_cost *= 0.6
 
     # Fast passage: reward adjacent strings, penalize string skipping
-    if time_gap < 0.1:
+    if time_gap < 0.15:
         prev_strings = {s for s, _ in prev_config}
         curr_strings = {s for s, _ in curr_config}
         min_string_gap = min(abs(cs - ps) for cs in curr_strings for ps in prev_strings)
         if min_string_gap <= 1:
-            shift_cost = max(0, shift_cost - 2.0)
+            # Strong adjacent-string bonus for sweep-like passages
+            shift_cost = max(0, shift_cost - 8.0)
+            # Extra bonus if fret positions are close (sweep economy)
+            prev_frets = [f for _, f in prev_config if f > 0]
+            curr_frets = [f for _, f in curr_config if f > 0]
+            if prev_frets and curr_frets:
+                fret_delta = abs(min(curr_frets) - min(prev_frets))
+                if fret_delta <= 2:
+                    shift_cost = max(0, shift_cost - 5.0)
         elif min_string_gap >= 3:
-            shift_cost += min_string_gap * 3.0
+            shift_cost += min_string_gap * 5.0
 
     return max(0, shift_cost)
 

@@ -228,6 +228,7 @@ def analyze_and_refine(
     logger.info("Analyzing %d phrases (%d events) with %s...", len(phrases), len(events), model)
 
     for phrase_num, phrase_indices in enumerate(phrases):
+        logger.info("Phrase %d/%d (%d notes)...", phrase_num + 1, len(phrases), len(phrase_indices))
         phrase_events = refined
         phrase_lines = _events_to_prompt_lines(phrase_events, phrase_indices, tuning)
         prompt = _build_analysis_prompt(phrase_lines, tuning, string_names)

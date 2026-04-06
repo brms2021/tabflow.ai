@@ -231,6 +231,17 @@ class TestAssignFrets:
         note = events[0].notes[0]
         assert tuning[note.string] + note.fret == 35
 
+    def test_sweep_pattern_stays_compact(self):
+        """A fast arpeggio across strings should stay in a tight fret range."""
+        # Am arpeggio sweep ascending: A2, C3, E3, A3, C4, E4
+        pitches = [45, 48, 52, 57, 60, 64]
+        notes = [NoteEvent(i * 0.06, i * 0.06 + 0.05, p, 0.8, 100) for i, p in enumerate(pitches)]
+        events = assign_frets(notes)
+        frets = [e.notes[0].fret for e in events]
+        # All frets should stay within a compact range (natural hand position)
+        span = max(frets) - min(frets)
+        assert span <= 5, f"Sweep fret span {span} too wide: {frets}"
+
 
 # -----------------------------------------------------------------------
 # render_ascii_tab

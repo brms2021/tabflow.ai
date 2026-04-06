@@ -12,7 +12,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
-from .separator import get_guitar_stem, separate
+from .separator import check_audio_format, get_guitar_stem, separate
 from .tabber import (
     assign_frets,
     filter_notes,
@@ -38,7 +38,7 @@ def _setup_logging(verbose: bool) -> None:
 
 
 @click.command()
-@click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("audio_file", type=click.Path(exists=True, path_type=Path), nargs=-1, required=True)
 @click.option(
     "--output",
     "-o",
@@ -90,9 +90,12 @@ def _setup_logging(verbose: bool) -> None:
     "--skip-separation", is_flag=True, help="Skip Demucs and use the input file directly (if already isolated)."
 )
 @click.option("--width", "-w", default=80, type=int, help="Tab line width in characters.")
+@click.option("--bpm/--no-bpm", default=False, help="Detect tempo and add bar lines to output.")
+@click.option("--gp5", is_flag=True, default=False, help="Export to Guitar Pro 5 (.gp5) format.")
+@click.option("--quantize", default=0.0, type=float, help="Beat quantization strength (0-1). 0=off, 1=snap to beat.")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
 def main(
-    audio_file: Path,
+    audio_file: tuple[Path, ...],
     output: Path | None,
     model: str,
     onset_threshold: float,
@@ -107,15 +110,84 @@ def main(
     llm_max_phrases: int,
     skip_separation: bool,
     width: int,
+    bpm: bool,
+    gp5: bool,
+    quantize: float,
     verbose: bool,
 ):
-    """Rip guitar tablature from an audio file.
+    """Rip guitar tablature from one or more audio files.
 
     Takes a full mix (MP3, WAV, FLAC, etc.), isolates the guitar,
     transcribes to MIDI, and generates ASCII tablature + PDF.
     """
     _setup_logging(verbose)
 
+    if len(audio_file) > 1:
+        click.echo(f"Processing {len(audio_file)} files...")
+
+    errors = []
+    for file_idx, single_file in enumerate(audio_file):
+        if len(audio_file) > 1:
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"  File {file_idx + 1}/{len(audio_file)}: {single_file.name}")
+            click.echo(f"{'=' * 60}")
+        try:
+            _process_file(
+                single_file,
+                output=output,
+                model=model,
+                onset_threshold=onset_threshold,
+                frame_threshold=frame_threshold,
+                resolution=resolution,
+                tuning=tuning,
+                amplitude_threshold=amplitude_threshold,
+                min_note_length=min_note_length,
+                pdf=pdf,
+                llm=llm,
+                llm_model=llm_model,
+                llm_max_phrases=llm_max_phrases,
+                skip_separation=skip_separation,
+                width=width,
+                bpm=bpm,
+                gp5=gp5,
+                quantize=quantize,
+            )
+        except Exception as e:
+            logger.error("Failed to process %s: %s", single_file.name, e)
+            errors.append((single_file.name, str(e)))
+
+    if len(audio_file) > 1:
+        click.echo(f"\n{'=' * 60}")
+        click.echo(f"  Batch complete: {len(audio_file) - len(errors)}/{len(audio_file)} succeeded")
+        if errors:
+            click.echo("  Errors:")
+            for name, err in errors:
+                click.echo(f"    - {name}: {err}")
+        click.echo(f"{'=' * 60}")
+
+
+def _process_file(
+    audio_file: Path,
+    *,
+    output: Path | None,
+    model: str,
+    onset_threshold: float,
+    frame_threshold: float,
+    resolution: float,
+    tuning: str,
+    amplitude_threshold: float,
+    min_note_length: float,
+    pdf: bool,
+    llm: bool,
+    llm_model: str,
+    llm_max_phrases: int,
+    skip_separation: bool,
+    width: int,
+    bpm: bool,
+    gp5: bool,
+    quantize: float,
+) -> None:
+    """Process a single audio file through the full pipeline."""
     # Parse tuning
     tuning_pitches, string_names = parse_tuning(tuning)
     num_strings = len(tuning_pitches)
@@ -127,6 +199,9 @@ def main(
     output.mkdir(parents=True, exist_ok=True)
 
     track_name = audio_file.stem
+
+    # Validate audio format
+    check_audio_format(audio_file)
 
     # --- Step 1: Source separation ---
     if skip_separation:
@@ -178,6 +253,21 @@ def main(
             max_phrases=llm_max_phrases if llm_max_phrases > 0 else None,
         )
 
+    # --- Step 4c: BPM detection and quantization ---
+    detected_bpm = None
+    bar_lines = None
+    if bpm:
+        logger.info("Detecting tempo...")
+        from .tempo import detect_tempo, generate_bar_lines, quantize_events
+
+        detected_bpm, beat_times = detect_tempo(str(guitar_path))
+        bar_lines = generate_bar_lines(beat_times)
+        logger.info("%.1f BPM, %d bar lines", detected_bpm, len(bar_lines))
+
+        if quantize > 0:
+            logger.info("Quantizing events (strength=%.2f)...", quantize)
+            events = quantize_events(events, beat_times, strength=quantize)
+
     # --- Step 5: Generate tablature ---
     logger.info("Step 5/5: Generating tablature...")
 
@@ -191,6 +281,8 @@ def main(
         tuning=tuning_pitches,
         string_names=string_names,
     )
+    if detected_bpm:
+        header = header.rstrip("\n") + f"\n  BPM: {detected_bpm:.0f} | Bars: {len(bar_lines)}\n{'=' * 60}\n"
     tab_text = render_ascii_tab(
         events,
         tuning=tuning_pitches,
@@ -224,11 +316,28 @@ def main(
         )
         logger.info("PDF saved to %s", pdf_path)
 
+    # Generate Guitar Pro 5
+    gp5_path = None
+    if gp5:
+        from .gp_exporter import export_gp5
+
+        gp5_path = output / f"{track_name}.gp5"
+        export_gp5(
+            events,
+            gp5_path,
+            title=track_name,
+            tuning=tuning_pitches,
+            string_names=string_names,
+            bpm=detected_bpm or 120.0,
+        )
+
     click.echo("\nDone!")
     click.echo(f"  MIDI:  {midi_path}")
     click.echo(f"  Tab:   {tab_path}")
     if pdf_path:
         click.echo(f"  PDF:   {pdf_path}")
+    if gp5_path:
+        click.echo(f"  GP5:   {gp5_path}")
     if not skip_separation:
         click.echo(f"  Stems: {output / 'stems'}")
 

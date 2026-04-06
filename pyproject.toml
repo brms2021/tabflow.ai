@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+gp = ["pyguitarpro>=0.9"]
 
 [project.scripts]
 tab-ripper = "tab_ripper.cli:main"
