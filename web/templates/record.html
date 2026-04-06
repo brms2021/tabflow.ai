@@ -24,11 +24,27 @@
             Ignore & Restart
         </button>
 
+        <!-- BPM -->
+        <div class="flex items-center gap-1 border border-white/10 rounded-lg px-2 py-1">
+            <input type="number" id="bpm-input" value="120" min="40" max="240" step="1"
+                   class="w-14 bg-transparent text-sm text-center focus:outline-none">
+            <span class="text-xs text-gray-500">BPM</span>
+        </div>
+
         <!-- Or upload a file instead -->
         <label class="text-sm text-gray-500 cursor-pointer hover:text-brand-electric transition ml-auto">
             or <span class="underline">upload a file</span>
             <input type="file" accept=".mp3,.wav,.flac,.ogg,.m4a" class="hidden" onchange="processUploadedFile(this)">
         </label>
+    </div>
+
+    <!-- Count-in Overlay -->
+    <div id="countin-overlay" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+        <div class="text-center">
+            <div id="countin-number" class="text-[120px] font-extrabold text-brand-electric transition-transform duration-150"></div>
+            <p class="text-gray-400 mt-2">Get ready...</p>
+            <button onclick="cancelCountin()" class="mt-4 text-sm text-gray-500 hover:text-red-400 transition">Cancel</button>
+        </div>
     </div>
 
     <!-- Level Meter + Status -->
@@ -151,12 +167,81 @@ function clearError() {
 // ============================================================
 // Recording
 // ============================================================
+let countinActive = false;
+let countinTimeout = null;
+
 async function toggleRecording() {
     if (recording) {
         stopRecording();
+    } else if (countinActive) {
+        cancelCountin();
     } else {
+        await doCountinThenRecord();
+    }
+}
+
+async function doCountinThenRecord() {
+    clearError();
+    const bpm = parseInt(document.getElementById('bpm-input').value) || 120;
+    const beatMs = 60000 / bpm;
+
+    // Set up audio context for click sound
+    const clickCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playClick(freq = 800, duration = 0.05) {
+        const osc = clickCtx.createOscillator();
+        const gain = clickCtx.createGain();
+        osc.connect(gain);
+        gain.connect(clickCtx.destination);
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.5, clickCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, clickCtx.currentTime + duration);
+        osc.start();
+        osc.stop(clickCtx.currentTime + duration);
+    }
+
+    // Show overlay
+    const overlay = document.getElementById('countin-overlay');
+    const numEl = document.getElementById('countin-number');
+    overlay.classList.remove('hidden');
+    countinActive = true;
+
+    // Update record button
+    document.getElementById('record-icon').textContent = '✕';
+    document.getElementById('record-label').textContent = 'Cancel';
+
+    const beats = [3, 2, 1];
+    for (let i = 0; i < beats.length; i++) {
+        if (!countinActive) break;
+        numEl.textContent = beats[i];
+        numEl.style.transform = 'scale(1.3)';
+        playClick(i === beats.length - 1 ? 1200 : 800);
+        await new Promise(r => setTimeout(() => {
+            numEl.style.transform = 'scale(1)';
+            r();
+        }, 150));
+        if (i < beats.length - 1) {
+            await new Promise(r => { countinTimeout = setTimeout(r, beatMs - 150); });
+        }
+    }
+
+    overlay.classList.add('hidden');
+    clickCtx.close();
+
+    if (countinActive) {
+        countinActive = false;
         await startRecording();
     }
+}
+
+function cancelCountin() {
+    countinActive = false;
+    if (countinTimeout) { clearTimeout(countinTimeout); countinTimeout = null; }
+    document.getElementById('countin-overlay').classList.add('hidden');
+    document.getElementById('record-icon').textContent = '●';
+    document.getElementById('record-label').textContent = 'Start Recording';
+    document.getElementById('btn-record').classList.replace('bg-gray-600', 'bg-red-600');
+    setStatus('Cancelled');
 }
 
 async function startRecording() {
