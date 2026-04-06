@@ -89,30 +89,96 @@
         </div>
     </div>
 
-    <!-- Correction Popup (hidden by default) -->
-    <div id="correction-popup" class="hidden fixed bg-brand-surface border border-white/20 rounded-lg shadow-2xl p-4 z-50 min-w-[200px]">
-        <h3 class="text-sm font-semibold mb-2">Correct this note</h3>
-        <div class="space-y-2">
-            <div>
-                <label class="text-xs text-gray-400">String / Fret</label>
-                <div id="fret-options" class="grid grid-cols-2 gap-1 mt-1"></div>
+    <!-- Correction Popup -->
+    <div id="correction-popup" class="hidden fixed bg-brand-surface border border-white/20 rounded-xl shadow-2xl z-50 min-w-[260px] max-w-[320px]">
+        <!-- Tab bar: Quick / String Mode -->
+        <div class="flex border-b border-white/10">
+            <button onclick="setCorrectionTab('quick')" id="tab-quick"
+                    class="flex-1 text-xs font-semibold py-2 px-3 text-brand-electric border-b-2 border-brand-electric">Quick</button>
+            <button onclick="setCorrectionTab('string')" id="tab-string"
+                    class="flex-1 text-xs font-semibold py-2 px-3 text-gray-500 border-b-2 border-transparent hover:text-gray-300">String Mode</button>
+        </div>
+
+        <div class="p-4 space-y-3">
+            <!-- Quick mode: grid of valid positions -->
+            <div id="mode-quick">
+                <label class="text-xs text-gray-400">Position (string:fret)</label>
+                <div id="fret-options" class="grid grid-cols-3 gap-1 mt-1"></div>
             </div>
+
+            <!-- String mode: dropdown + fret input -->
+            <div id="mode-string" class="hidden">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-xs text-gray-400">String</label>
+                        <select id="string-select" class="w-full bg-brand-slate border border-white/10 rounded px-2 py-1 text-sm mt-1">
+                            <option value="5">1 - e (high)</option>
+                            <option value="4">2 - B</option>
+                            <option value="3">3 - G</option>
+                            <option value="2">4 - D</option>
+                            <option value="1">5 - A</option>
+                            <option value="0">6 - E (low)</option>
+                            <option value="6">7 - B (7-string)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">Fret</label>
+                        <input type="number" id="fret-input" min="0" max="24" value="0"
+                               class="w-full bg-brand-slate border border-white/10 rounded px-2 py-1 text-sm mt-1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Note technique (single note) -->
             <div>
-                <label class="text-xs text-gray-400">Technique</label>
+                <label class="text-xs text-gray-400">Note property</label>
                 <select id="technique-select" class="w-full bg-brand-slate border border-white/10 rounded px-2 py-1 text-sm mt-1">
-                    <option value="normal">Normal</option>
-                    <option value="hammer-on">Hammer-on</option>
-                    <option value="pull-off">Pull-off</option>
-                    <option value="slide">Slide</option>
-                    <option value="bend">Bend</option>
+                    <option value="normal">Normal (picked)</option>
+                    <option value="let-ring">Let ring</option>
+                    <option value="palm-mute">Palm mute</option>
+                    <option value="harmonic">Harmonic</option>
+                    <option value="pinch-harmonic">Pinch harmonic</option>
+                    <option value="vibrato">Vibrato</option>
                     <option value="tap">Tap</option>
+                    <option value="dead-note">Dead note (x)</option>
                 </select>
             </div>
-            <div class="flex gap-2 mt-3">
-                <button onclick="applyCorrection()" class="flex-1 bg-brand-electric text-white text-sm py-1 rounded">Apply</button>
-                <button onclick="closePopup()" class="flex-1 bg-gray-600 text-white text-sm py-1 rounded">Cancel</button>
+
+            <div class="flex gap-2 pt-1">
+                <button onclick="applyCorrection()" class="flex-1 bg-brand-electric text-white text-sm py-1.5 rounded font-medium">Apply</button>
+                <button onclick="closePopup()" class="flex-1 bg-gray-600 text-white text-sm py-1.5 rounded">Cancel</button>
             </div>
         </div>
+    </div>
+
+    <!-- Technique Link Popup (between two selected notes) -->
+    <div id="link-popup" class="hidden fixed bg-brand-surface border border-brand-gold/40 rounded-xl shadow-2xl p-4 z-50 min-w-[220px]">
+        <h3 class="text-sm font-semibold text-brand-gold mb-2">Link technique</h3>
+        <p class="text-xs text-gray-400 mb-2">
+            Note <span id="link-from" class="text-white font-mono"></span> →
+            Note <span id="link-to" class="text-white font-mono"></span>
+        </p>
+        <select id="link-technique" class="w-full bg-brand-slate border border-white/10 rounded px-2 py-1 text-sm">
+            <option value="">— select technique —</option>
+            <option value="slide-up">Slide up (/)</option>
+            <option value="slide-down">Slide down (\)</option>
+            <option value="hammer-on">Hammer-on (h)</option>
+            <option value="pull-off">Pull-off (p)</option>
+            <option value="bend-up">Bend up (b)</option>
+            <option value="bend-down">Bend release (r)</option>
+            <option value="sweep-up">Sweep up</option>
+            <option value="sweep-down">Sweep down</option>
+            <option value="legato">Legato</option>
+        </select>
+        <div class="flex gap-2 mt-3">
+            <button onclick="applyLink()" class="flex-1 bg-brand-gold text-black text-sm py-1.5 rounded font-medium">Apply</button>
+            <button onclick="closeLinkPopup()" class="flex-1 bg-gray-600 text-white text-sm py-1.5 rounded">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Multi-select hint -->
+    <div id="multiselect-hint" class="hidden mt-4 bg-brand-gold/10 border border-brand-gold/30 rounded-lg p-3 text-sm text-brand-gold">
+        <span id="selected-count">1</span> note selected — click another note to link a technique between them, or click the same note to edit it.
     </div>
 
     <!-- Stats -->
@@ -462,7 +528,7 @@ function addNotesToTab(notes) {
         rect.setAttribute('fill', '#242842');
         rect.setAttribute('data-note-idx', idx);
         rect.setAttribute('class', 'cursor-pointer');
-        rect.onclick = () => openCorrectionPopup(idx, rect);
+        rect.onclick = () => onNoteClick(idx, rect);
         group.appendChild(rect);
 
         // Fret number text
@@ -475,7 +541,7 @@ function addNotesToTab(notes) {
         text.setAttribute('data-note-idx', idx);
         text.setAttribute('class', 'cursor-pointer');
         text.textContent = note.fret;
-        text.onclick = () => openCorrectionPopup(idx, rect);
+        text.onclick = () => onNoteClick(idx, rect);
         group.appendChild(text);
 
         noteXOffset += NOTE_SPACING;
@@ -492,10 +558,72 @@ function addNotesToTab(notes) {
 }
 
 // ============================================================
-// Correction Popup
+// Correction Popup (Quick mode + String mode)
 // ============================================================
 let selectedNoteIdx = null;
 let selectedRect = null;
+let firstSelectedIdx = null; // for multi-select linking
+let noteLinks = {}; // idx -> {toIdx, technique, symbol}
+
+const LINK_SYMBOLS = {
+    'slide-up': '/', 'slide-down': '\\', 'hammer-on': 'h', 'pull-off': 'p',
+    'bend-up': 'b', 'bend-down': 'r', 'sweep-up': '⌃', 'sweep-down': '⌄', 'legato': '~',
+};
+
+function setCorrectionTab(tab) {
+    document.getElementById('mode-quick').classList.toggle('hidden', tab !== 'quick');
+    document.getElementById('mode-string').classList.toggle('hidden', tab !== 'string');
+    document.getElementById('tab-quick').classList.toggle('text-brand-electric', tab === 'quick');
+    document.getElementById('tab-quick').classList.toggle('border-brand-electric', tab === 'quick');
+    document.getElementById('tab-quick').classList.toggle('text-gray-500', tab !== 'quick');
+    document.getElementById('tab-quick').classList.toggle('border-transparent', tab !== 'quick');
+    document.getElementById('tab-string').classList.toggle('text-brand-electric', tab === 'string');
+    document.getElementById('tab-string').classList.toggle('border-brand-electric', tab === 'string');
+    document.getElementById('tab-string').classList.toggle('text-gray-500', tab !== 'string');
+    document.getElementById('tab-string').classList.toggle('border-transparent', tab !== 'string');
+}
+
+function onNoteClick(idx, rect) {
+    // Multi-select: if one note already selected, open link popup
+    if (firstSelectedIdx !== null && firstSelectedIdx !== idx) {
+        openLinkPopup(firstSelectedIdx, idx);
+        clearSelection();
+        return;
+    }
+
+    if (firstSelectedIdx === idx) {
+        // Clicked same note twice — open correction popup
+        clearSelection();
+        openCorrectionPopup(idx, rect);
+        return;
+    }
+
+    // First click — select this note, show hint
+    firstSelectedIdx = idx;
+    highlightNote(idx, '#0080FF');
+    document.getElementById('multiselect-hint').classList.remove('hidden');
+    document.getElementById('selected-count').textContent = '1';
+}
+
+function clearSelection() {
+    if (firstSelectedIdx !== null) {
+        highlightNote(firstSelectedIdx, null); // restore original color
+        firstSelectedIdx = null;
+    }
+    document.getElementById('multiselect-hint').classList.add('hidden');
+}
+
+function highlightNote(idx, color) {
+    const textEl = document.querySelector(`text[data-note-idx="${idx}"]`);
+    if (textEl) {
+        if (color) {
+            textEl.dataset.prevFill = textEl.getAttribute('fill');
+            textEl.setAttribute('fill', color);
+        } else {
+            textEl.setAttribute('fill', textEl.dataset.prevFill || '#E5E7EB');
+        }
+    }
+}
 
 function openCorrectionPopup(idx, rect) {
     selectedNoteIdx = idx;
@@ -503,7 +631,7 @@ function openCorrectionPopup(idx, rect) {
     const note = allNotes[idx];
     const popup = document.getElementById('correction-popup');
 
-    // Get all valid (string, fret) options for this pitch
+    // Quick mode: grid of valid positions
     const options = document.getElementById('fret-options');
     options.innerHTML = '';
     TUNING.forEach((open, stringIdx) => {
@@ -516,7 +644,9 @@ function openCorrectionPopup(idx, rect) {
             }`;
             btn.textContent = `${STRING_NAMES[stringIdx]}:${fret}`;
             btn.onclick = () => {
-                document.querySelectorAll('#fret-options button').forEach(b => b.className = b.className.replace('bg-brand-electric border-brand-electric text-white', 'border-white/10 text-gray-300'));
+                document.querySelectorAll('#fret-options button').forEach(b => {
+                    b.className = b.className.replace('bg-brand-electric border-brand-electric text-white', 'border-white/10 text-gray-300');
+                });
                 btn.className = `text-xs px-2 py-1 rounded border transition bg-brand-electric border-brand-electric text-white`;
                 btn.dataset.string = stringIdx;
                 btn.dataset.fret = fret;
@@ -527,12 +657,19 @@ function openCorrectionPopup(idx, rect) {
         }
     });
 
-    // Set technique
+    // String mode: prefill current values
+    document.getElementById('string-select').value = note.string;
+    document.getElementById('fret-input').value = note.fret;
+
+    // Technique
     document.getElementById('technique-select').value = note.technique || 'normal';
 
-    // Position popup near the clicked note
-    const svgRect = rect.getBoundingClientRect();
-    popup.style.left = (svgRect.left + window.scrollX) + 'px';
+    // Default to quick tab
+    setCorrectionTab('quick');
+
+    // Position popup
+    const svgRect = (rect || document.getElementById('tab-svg')).getBoundingClientRect();
+    popup.style.left = Math.min(svgRect.left + window.scrollX, window.innerWidth - 280) + 'px';
     popup.style.top = (svgRect.bottom + window.scrollY + 8) + 'px';
     popup.classList.remove('hidden');
 }
@@ -545,55 +682,148 @@ function closePopup() {
 function applyCorrection() {
     if (selectedNoteIdx === null) return;
 
-    const activeBtn = document.querySelector('#fret-options button.bg-brand-electric');
-    if (!activeBtn) { closePopup(); return; }
+    let newString, newFret;
+    const isStringMode = !document.getElementById('mode-string').classList.contains('hidden');
 
-    const newString = parseInt(activeBtn.dataset.string);
-    const newFret = parseInt(activeBtn.dataset.fret);
+    if (isStringMode) {
+        newString = parseInt(document.getElementById('string-select').value);
+        newFret = parseInt(document.getElementById('fret-input').value);
+    } else {
+        const activeBtn = document.querySelector('#fret-options button.bg-brand-electric');
+        if (!activeBtn) { closePopup(); return; }
+        newString = parseInt(activeBtn.dataset.string);
+        newFret = parseInt(activeBtn.dataset.fret);
+    }
+
     const newTechnique = document.getElementById('technique-select').value;
-
     const note = allNotes[selectedNoteIdx];
     const changed = (note.string !== newString || note.fret !== newFret || note.technique !== newTechnique);
 
     if (changed) {
-        // Save correction
         corrections[selectedNoteIdx] = {
             original: {string: note.string, fret: note.fret, technique: note.technique},
             corrected: {string: newString, fret: newFret, technique: newTechnique},
         };
         correctionCount++;
         document.getElementById('stat-corrections').textContent = correctionCount;
-
-        // Update accuracy display
         const accuracy = ((allNotes.length - correctionCount) / allNotes.length * 100).toFixed(0);
         document.getElementById('stat-accuracy').textContent = accuracy + '%';
 
-        // Update note data
         note.string = newString;
         note.fret = newFret;
         note.technique = newTechnique;
 
-        // Update SVG — find elements with this note index and update
-        const elements = document.querySelectorAll(`[data-note-idx="${selectedNoteIdx}"]`);
-        elements.forEach(el => {
-            if (el.tagName === 'text') {
-                el.textContent = newFret;
-                el.setAttribute('fill', '#FFB800'); // gold = corrected
-            }
-            if (el.tagName === 'rect') {
-                const newY = STRING_Y[newString];
-                el.setAttribute('y', newY - 10);
-            }
-        });
-        // Move text too
-        const textEl = document.querySelector(`text[data-note-idx="${selectedNoteIdx}"]`);
-        if (textEl) {
-            textEl.setAttribute('y', STRING_Y[newString] + 1);
-        }
+        // Update SVG
+        updateNoteVisual(selectedNoteIdx, newString, newFret, '#FFB800');
     }
 
     closePopup();
     document.getElementById('btn-save').disabled = false;
+}
+
+function updateNoteVisual(idx, string, fret, color) {
+    const newY = STRING_Y[string];
+    const rectEl = document.querySelector(`rect[data-note-idx="${idx}"]`);
+    const textEl = document.querySelector(`text[data-note-idx="${idx}"]`);
+    if (rectEl) rectEl.setAttribute('y', newY - 10);
+    if (textEl) {
+        textEl.setAttribute('y', newY + 1);
+        textEl.textContent = fret;
+        if (color) textEl.setAttribute('fill', color);
+    }
+}
+
+// ============================================================
+// Link Techniques (between two notes)
+// ============================================================
+function openLinkPopup(fromIdx, toIdx) {
+    const popup = document.getElementById('link-popup');
+    const noteA = allNotes[fromIdx];
+    const noteB = allNotes[toIdx];
+
+    document.getElementById('link-from').textContent = `${STRING_NAMES[noteA.string]}:${noteA.fret}`;
+    document.getElementById('link-to').textContent = `${STRING_NAMES[noteB.string]}:${noteB.fret}`;
+    document.getElementById('link-technique').value = '';
+
+    popup.dataset.fromIdx = fromIdx;
+    popup.dataset.toIdx = toIdx;
+
+    // Position between the two notes
+    const rectA = document.querySelector(`rect[data-note-idx="${fromIdx}"]`);
+    const rectB = document.querySelector(`rect[data-note-idx="${toIdx}"]`);
+    if (rectA && rectB) {
+        const rA = rectA.getBoundingClientRect();
+        const rB = rectB.getBoundingClientRect();
+        const midX = (rA.left + rB.left) / 2;
+        popup.style.left = Math.min(midX + window.scrollX, window.innerWidth - 240) + 'px';
+        popup.style.top = (Math.max(rA.bottom, rB.bottom) + window.scrollY + 8) + 'px';
+    }
+
+    popup.classList.remove('hidden');
+}
+
+function closeLinkPopup() {
+    document.getElementById('link-popup').classList.add('hidden');
+}
+
+function applyLink() {
+    const popup = document.getElementById('link-popup');
+    const fromIdx = parseInt(popup.dataset.fromIdx);
+    const toIdx = parseInt(popup.dataset.toIdx);
+    const technique = document.getElementById('link-technique').value;
+
+    if (!technique) { closeLinkPopup(); return; }
+
+    const symbol = LINK_SYMBOLS[technique] || technique[0];
+
+    // Store the link
+    noteLinks[fromIdx] = {toIdx, technique, symbol};
+
+    // Draw link symbol between notes on SVG
+    const group = document.getElementById('notes-group');
+    const rectA = document.querySelector(`rect[data-note-idx="${fromIdx}"]`);
+    const rectB = document.querySelector(`rect[data-note-idx="${toIdx}"]`);
+    if (rectA && rectB) {
+        const x1 = parseFloat(rectA.getAttribute('x')) + parseFloat(rectA.getAttribute('width'));
+        const x2 = parseFloat(rectB.getAttribute('x'));
+        const midX = (x1 + x2) / 2;
+        const y = parseFloat(rectA.getAttribute('y')) + 5;
+
+        // Symbol text between notes
+        const linkText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        linkText.setAttribute('x', midX);
+        linkText.setAttribute('y', y);
+        linkText.setAttribute('fill', '#FFB800');
+        linkText.setAttribute('font-size', '10');
+        linkText.setAttribute('font-family', 'JetBrains Mono, monospace');
+        linkText.setAttribute('text-anchor', 'middle');
+        linkText.setAttribute('class', 'link-symbol');
+        linkText.textContent = symbol;
+        group.appendChild(linkText);
+
+        // Connecting line
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1 + 1);
+        line.setAttribute('y1', y);
+        line.setAttribute('x2', x2 - 1);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#FFB800');
+        line.setAttribute('stroke-width', '0.5');
+        line.setAttribute('stroke-dasharray', '2,2');
+        line.setAttribute('class', 'link-line');
+        group.appendChild(line);
+    }
+
+    // Update note techniques
+    allNotes[fromIdx].linkTo = toIdx;
+    allNotes[fromIdx].linkTechnique = technique;
+
+    correctionCount++;
+    document.getElementById('stat-corrections').textContent = correctionCount;
+    document.getElementById('btn-save').disabled = false;
+
+    closeLinkPopup();
+    setStatus(`Linked: ${LINK_SYMBOLS[technique] || technique}`);
 }
 
 // ============================================================
@@ -608,6 +838,7 @@ async function saveSession() {
             body: JSON.stringify({
                 notes: allNotes,
                 corrections: corrections,
+                links: noteLinks,
             }),
         });
         const data = await resp.json();
