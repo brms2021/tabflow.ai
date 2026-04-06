@@ -10,7 +10,7 @@
     <p class="text-gray-400 mb-8">Play your guitar — we'll transcribe it live. Click any note to correct it, and your corrections train the model.</p>
 
     <!-- Controls -->
-    <div class="flex items-center gap-4 mb-6">
+    <div class="flex flex-wrap items-center gap-3 mb-6">
         <button id="btn-record" onclick="toggleRecording()"
                 class="bg-red-600 hover:bg-red-500 text-white font-semibold py-2 px-6 rounded-lg transition flex items-center gap-2">
             <span id="record-icon">&#9679;</span>
@@ -20,14 +20,27 @@
                 class="bg-brand-deep hover:bg-brand-electric text-white font-semibold py-2 px-6 rounded-lg transition disabled:opacity-30">
             Save & Train
         </button>
+        <button id="btn-restart" onclick="restartSession()" class="hidden bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg transition">
+            Ignore & Restart
+        </button>
 
-        <!-- Level Meter -->
+        <!-- Or upload a file instead -->
+        <label class="text-sm text-gray-500 cursor-pointer hover:text-brand-electric transition ml-auto">
+            or <span class="underline">upload a file</span>
+            <input type="file" accept=".mp3,.wav,.flac,.ogg,.m4a" class="hidden" onchange="processUploadedFile(this)">
+        </label>
+    </div>
+
+    <!-- Level Meter + Status -->
+    <div class="flex items-center gap-3 mb-6">
         <div class="flex-1 bg-brand-slate rounded-full h-3 overflow-hidden">
             <div id="level-meter" class="h-full bg-green-500 transition-all duration-100" style="width: 0%"></div>
         </div>
-
-        <span id="status" class="text-sm text-gray-500">Ready</span>
+        <span id="status" class="text-sm text-gray-500">Ready — click Record or upload a file</span>
     </div>
+
+    <!-- Error Banner (hidden by default) -->
+    <div id="error-banner" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300"></div>
 
     <!-- Tab Display (Interactive SVG) -->
     <div class="bg-brand-surface rounded-xl border border-white/10 p-6 min-h-[300px]">
@@ -109,17 +122,31 @@
 // ============================================================
 let recording = false;
 let mediaRecorder = null;
+let audioContext = null;
 let ws = null;
 let allNotes = [];
 let corrections = {};
 let noteXOffset = 30;
 let correctionCount = 0;
 const NOTE_SPACING = 24;
-const STRING_Y = {5: 24, 4: 48, 3: 72, 2: 96, 1: 120, 0: 144}; // string index to Y
+const STRING_Y = {5: 24, 4: 48, 3: 72, 2: 96, 1: 120, 0: 144};
 
-// Standard tuning MIDI pitches
 const TUNING = [40, 45, 50, 55, 59, 64];
 const STRING_NAMES = ['E', 'A', 'D', 'G', 'B', 'e'];
+
+// ============================================================
+// Error handling
+// ============================================================
+function showError(msg) {
+    const banner = document.getElementById('error-banner');
+    banner.textContent = msg;
+    banner.classList.remove('hidden');
+    console.error('[TabFlow]', msg);
+}
+
+function clearError() {
+    document.getElementById('error-banner').classList.add('hidden');
+}
 
 // ============================================================
 // Recording
@@ -133,59 +160,117 @@ async function toggleRecording() {
 }
 
 async function startRecording() {
+    clearError();
+    setStatus('Requesting microphone access...');
+
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('Microphone access not available. Make sure you are using HTTPS or localhost, and that your browser supports audio capture.');
+        setStatus('Mic not available');
+        return;
+    }
+
+    let stream;
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: false,
-                sampleRate: 44100,
             }
         });
+        setStatus('Microphone connected');
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            showError('Microphone permission denied. Click the lock icon in your browser address bar to allow microphone access, then try again.');
+        } else if (err.name === 'NotFoundError') {
+            showError('No microphone found. Plug in a mic or audio interface and try again.');
+        } else {
+            showError(`Microphone error: ${err.message}`);
+        }
+        setStatus('Mic error');
+        return;
+    }
 
-        // Level meter
-        const ctx = new AudioContext();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
+    // Level meter
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
         updateLevelMeter(analyser);
+    } catch (err) {
+        console.warn('Level meter failed:', err);
+    }
 
-        // WebSocket connection
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${location.host}/ws/transcribe`);
-        ws.onmessage = (event) => {
+    // WebSocket connection
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${location.host}/ws/transcribe`);
+
+    ws.onopen = () => setStatus('Recording — play your guitar!');
+    ws.onerror = (err) => {
+        showError('WebSocket connection failed. Is the server running?');
+        console.error('WS error:', err);
+    };
+    ws.onclose = () => {
+        if (recording) setStatus('Connection lost');
+    };
+    ws.onmessage = (event) => {
+        try {
             const data = JSON.parse(event.data);
-            if (data.type === 'notes') {
+            if (data.type === 'notes' && data.notes.length > 0) {
                 addNotesToTab(data.notes);
+                setStatus(`Recording — ${allNotes.length} notes detected`);
+            } else if (data.type === 'error') {
+                showError(`Server: ${data.message}`);
             }
-        };
-        ws.onclose = () => setStatus('Disconnected');
+        } catch (e) {
+            console.warn('Bad WS message:', e);
+        }
+    };
 
-        // Record audio in 3-second chunks
-        mediaRecorder = new MediaRecorder(stream, {mimeType: 'audio/webm;codecs=opus'});
-        const chunks = [];
+    // Determine best recording format
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/mp4';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = '';  // let browser choose
+            }
+        }
+    }
 
-        mediaRecorder.ondataavailable = async (e) => {
-            if (e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-                // Convert to WAV and send
+    try {
+        const options = mimeType ? {mimeType} : {};
+        mediaRecorder = new MediaRecorder(stream, options);
+    } catch (err) {
+        showError(`MediaRecorder failed: ${err.message}. Try a different browser.`);
+        stream.getTracks().forEach(t => t.stop());
+        return;
+    }
+
+    mediaRecorder.ondataavailable = async (e) => {
+        if (e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+            try {
                 const arrayBuffer = await e.data.arrayBuffer();
                 ws.send(arrayBuffer);
+            } catch (err) {
+                console.warn('Send failed:', err);
             }
-        };
+        }
+    };
 
-        mediaRecorder.start(3000); // 3-second chunks
-        recording = true;
-        document.getElementById('record-icon').textContent = '■';
-        document.getElementById('record-label').textContent = 'Stop';
-        document.getElementById('btn-record').classList.replace('bg-red-600', 'bg-gray-600');
-        document.getElementById('session-stats').classList.remove('hidden');
-        setStatus('Recording...');
+    mediaRecorder.onerror = (e) => showError(`Recording error: ${e.error?.message || 'unknown'}`);
 
-    } catch (err) {
-        alert('Microphone access denied. Please allow microphone access and try again.');
-        console.error(err);
-    }
+    mediaRecorder.start(3000); // 3-second chunks
+    recording = true;
+    document.getElementById('record-icon').textContent = '■';
+    document.getElementById('record-label').textContent = 'Stop';
+    document.getElementById('btn-record').classList.replace('bg-red-600', 'bg-gray-600');
+    document.getElementById('btn-restart').classList.remove('hidden');
+    document.getElementById('session-stats').classList.remove('hidden');
 }
 
 function stopRecording() {
@@ -193,14 +278,64 @@ function stopRecording() {
         mediaRecorder.stop();
         mediaRecorder.stream.getTracks().forEach(t => t.stop());
     }
-    if (ws) ws.close();
+    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    if (audioContext) { audioContext.close(); audioContext = null; }
 
     recording = false;
     document.getElementById('record-icon').textContent = '●';
     document.getElementById('record-label').textContent = 'Start Recording';
     document.getElementById('btn-record').classList.replace('bg-gray-600', 'bg-red-600');
     document.getElementById('btn-save').disabled = allNotes.length === 0;
-    setStatus(`Done — ${allNotes.length} notes`);
+    document.getElementById('level-meter').style.width = '0%';
+    setStatus(allNotes.length > 0 ? `Done — ${allNotes.length} notes. Click notes to correct, then Save & Train.` : 'Done — no notes detected. Try again?');
+}
+
+// ============================================================
+// Restart (ignore current session)
+// ============================================================
+function restartSession() {
+    stopRecording();
+    allNotes = [];
+    corrections = {};
+    correctionCount = 0;
+    noteXOffset = 30;
+    document.getElementById('notes-group').innerHTML = '';
+    document.getElementById('tab-svg').setAttribute('width', '100%');
+    document.getElementById('note-count').textContent = '0';
+    document.getElementById('stat-notes').textContent = '0';
+    document.getElementById('stat-corrections').textContent = '0';
+    document.getElementById('stat-accuracy').textContent = '—';
+    document.getElementById('btn-save').disabled = true;
+    document.getElementById('session-stats').classList.add('hidden');
+    clearError();
+    setStatus('Ready — click Record or upload a file');
+}
+
+// ============================================================
+// File upload fallback
+// ============================================================
+async function processUploadedFile(input) {
+    if (!input.files.length) return;
+    clearError();
+
+    const file = input.files[0];
+    setStatus(`Uploading ${file.name}...`);
+
+    const formData = new FormData();
+    formData.append('audio_file', file);
+    formData.append('tuning', 'standard');
+    formData.append('model', 'htdemucs_ft');
+
+    try {
+        const resp = await fetch('/upload', {method: 'POST', body: formData, redirect: 'follow'});
+        if (resp.redirected) {
+            window.location.href = resp.url;
+        } else {
+            showError('Upload failed');
+        }
+    } catch (err) {
+        showError(`Upload error: ${err.message}`);
+    }
 }
 
 function updateLevelMeter(analyser) {
