@@ -312,22 +312,17 @@ def _config_center(config: tuple[tuple[int, int], ...]) -> float:
 
 
 def _config_cost(config: tuple[tuple[int, int], ...]) -> float:
-    """Internal cost of a single configuration (fret span + position penalty)."""
+    """Internal cost of a single configuration (fret span penalty)."""
     frets = [f for _, f in config if f > 0]
     if not frets:
         return 0.0
     span = max(frets) - min(frets)
-    cost = 0.0
     if span <= 4:
-        cost = 0.0
+        return 0.0
     elif span == 5:
-        cost = 5.0
+        return 5.0
     else:
-        cost = span * 10.0
-    # Mild preference for lower/open positions (natural first position playing)
-    avg_fret = sum(f for _, f in config) / len(config)
-    cost += avg_fret * 0.3
-    return cost
+        return span * 10.0
 
 
 def _transition_cost(
