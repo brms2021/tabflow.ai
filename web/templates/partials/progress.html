@@ -1,0 +1,40 @@
+<!-- HTMX partial: progress bar + status -->
+{% if job.status == 'completed' %}
+<!-- Trigger full page reload to show downloads -->
+<script>window.location.reload();</script>
+{% elif job.status == 'failed' %}
+<script>window.location.reload();</script>
+{% else %}
+<div class="bg-brand-surface rounded-lg border border-white/10 p-6">
+    <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium">{{ job.step or 'Starting...' }}</span>
+        <span class="text-sm text-brand-electric font-mono">{{ "%.0f"|format(job.progress) }}%</span>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="w-full bg-brand-slate rounded-full h-3 overflow-hidden">
+        <div class="h-full rounded-full transition-all duration-500 ease-out
+                    {% if job.progress < 50 %}bg-brand-deep{% elif job.progress < 90 %}bg-brand-electric{% else %}bg-green-500{% endif %}"
+             style="width: {{ job.progress }}%">
+        </div>
+    </div>
+
+    <!-- Step Indicators -->
+    <div class="flex justify-between mt-4 text-xs text-gray-500">
+        {% set steps = ['Transcribe', 'Filter', 'Fret Assign', 'LLM', 'Render'] %}
+        {% set thresholds = [10, 50, 65, 75, 90] %}
+        {% for step in steps %}
+        <div class="flex flex-col items-center gap-1">
+            <div class="w-3 h-3 rounded-full border
+                {% if job.progress >= thresholds[loop.index0] %}
+                    bg-brand-electric border-brand-electric
+                {% else %}
+                    border-gray-600
+                {% endif %}">
+            </div>
+            <span>{{ step }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

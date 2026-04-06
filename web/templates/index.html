@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}TabFlow.ai — Audio in. Tabs out.{% endblock %}
+{% block content %}
+<!-- Hero -->
+<div class="text-center py-12">
+    <h1 class="text-5xl font-extrabold mb-4">
+        <span class="text-brand-electric">Audio in.</span>
+        <span class="text-brand-gold">Tabs out.</span>
+    </h1>
+    <p class="text-xl text-gray-400 max-w-2xl mx-auto">
+        Upload any guitar recording and get professional tablature with natural hand positioning and technique detection.
+    </p>
+</div>
+
+<!-- Upload Form -->
+<div class="max-w-2xl mx-auto">
+    <form action="/upload" method="post" enctype="multipart/form-data"
+          class="bg-brand-surface rounded-xl border border-white/10 p-8 space-y-6">
+
+        <!-- File Upload -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Audio File</label>
+            <div class="border-2 border-dashed border-white/20 rounded-lg p-8 text-center hover:border-brand-electric/50 transition cursor-pointer"
+                 onclick="document.getElementById('audio_file').click()">
+                <input type="file" id="audio_file" name="audio_file" accept=".mp3,.wav,.flac,.ogg,.m4a"
+                       required class="hidden" onchange="updateFileName(this)">
+                <div id="upload-label">
+                    <svg class="w-10 h-10 mx-auto mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-gray-400">Drop your audio file here or <span class="text-brand-electric">browse</span></p>
+                    <p class="text-xs text-gray-500 mt-1">MP3, WAV, FLAC, OGG, M4A (max {{ max_upload_mb }}MB)</p>
+                </div>
+                <div id="file-selected" class="hidden">
+                    <p class="text-brand-electric font-medium" id="file-name"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Options Grid -->
+        <div class="grid grid-cols-2 gap-4">
+            <!-- Tuning -->
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Tuning</label>
+                <select name="tuning" class="w-full bg-brand-slate border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brand-electric focus:outline-none">
+                    {% for preset in tuning_presets %}
+                    <option value="{{ preset }}" {% if preset == 'standard' %}selected{% endif %}>{{ preset }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Separation Model -->
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Separation Model</label>
+                <select name="model" class="w-full bg-brand-slate border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brand-electric focus:outline-none">
+                    <option value="htdemucs_ft" selected>htdemucs_ft (best quality)</option>
+                    <option value="htdemucs">htdemucs (faster)</option>
+                    <option value="htdemucs_6s">htdemucs_6s (guitar stem)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- LLM Toggle -->
+        <div class="flex items-center gap-3">
+            <input type="checkbox" id="enable_llm" name="enable_llm" value="true"
+                   class="w-4 h-4 rounded border-white/20 bg-brand-slate text-brand-electric focus:ring-brand-electric">
+            <label for="enable_llm" class="text-sm text-gray-300">
+                Enable AI technique analysis (sweeps, hammer-ons, pull-offs)
+            </label>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit"
+                class="w-full bg-brand-deep hover:bg-brand-electric text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-lg">
+            Generate Tablature
+        </button>
+    </form>
+</div>
+
+<!-- How It Works -->
+<div class="mt-16 grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
+    {% set steps = [
+        ("Upload", "Drop any audio file"),
+        ("Separate", "Isolate the guitar"),
+        ("Transcribe", "Detect every note"),
+        ("Optimize", "Natural fret positions"),
+        ("Download", "PDF, GP5, MIDI, ASCII"),
+    ] %}
+    {% for title, desc in steps %}
+    <div class="bg-brand-surface rounded-lg border border-white/5 p-4">
+        <div class="text-2xl font-bold text-brand-electric mb-1">{{ loop.index }}</div>
+        <div class="font-semibold text-sm">{{ title }}</div>
+        <div class="text-xs text-gray-500 mt-1">{{ desc }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Recent Jobs -->
+{% if recent_jobs %}
+<div class="mt-16">
+    <h2 class="text-xl font-bold mb-4">Recent Jobs</h2>
+    <div class="space-y-2">
+        {% for job in recent_jobs %}
+        <a href="/jobs/{{ job.id }}" class="flex items-center justify-between bg-brand-surface rounded-lg border border-white/5 px-4 py-3 hover:border-brand-electric/30 transition">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-medium">{{ job.filename }}</span>
+                <span class="text-xs text-gray-500">{{ job.tuning }}</span>
+            </div>
+            <div class="flex items-center gap-3">
+                {% if job.status == 'completed' %}
+                <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">completed</span>
+                {% elif job.status == 'processing' %}
+                <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">processing</span>
+                {% elif job.status == 'failed' %}
+                <span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded">failed</span>
+                {% else %}
+                <span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded">{{ job.status }}</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+function updateFileName(input) {
+    if (input.files.length > 0) {
+        document.getElementById('file-name').textContent = input.files[0].name;
+        document.getElementById('upload-label').classList.add('hidden');
+        document.getElementById('file-selected').classList.remove('hidden');
+    }
+}
+</script>
+{% endblock %}

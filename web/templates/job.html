@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Job: {{ job.filename }} — TabFlow.ai{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold">{{ job.filename }}</h1>
+        <div class="text-sm text-gray-500 mt-1">
+            Tuning: {{ job.tuning }} &bull; Model: {{ job.model }}
+            {% if job.enable_llm %}&bull; LLM enabled{% endif %}
+        </div>
+    </div>
+
+    <!-- Progress Section (polls via HTMX) -->
+    <div id="progress-container"
+         {% if job.status in ['pending', 'processing'] %}
+         hx-get="/jobs/{{ job.id }}/progress"
+         hx-trigger="every 2s"
+         hx-swap="innerHTML"
+         {% endif %}>
+        {% include "partials/progress.html" %}
+    </div>
+
+    <!-- Output Section (shown when complete) -->
+    {% if job.status == 'completed' %}
+    <div class="mt-8 space-y-6">
+        <!-- Download Buttons -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {% if job.output_pdf %}
+            <a href="/jobs/{{ job.id }}/download/{{ job.output_pdf }}"
+               class="flex flex-col items-center bg-brand-surface rounded-lg border border-white/10 p-4 hover:border-brand-electric/50 transition">
+                <span class="text-2xl mb-1">📄</span>
+                <span class="text-sm font-medium">PDF Tab</span>
+                <span class="text-xs text-gray-500">Printable</span>
+            </a>
+            {% endif %}
+            {% if job.output_gp5 %}
+            <a href="/jobs/{{ job.id }}/download/{{ job.output_gp5 }}"
+               class="flex flex-col items-center bg-brand-surface rounded-lg border border-white/10 p-4 hover:border-brand-electric/50 transition">
+                <span class="text-2xl mb-1">🎸</span>
+                <span class="text-sm font-medium">Guitar Pro</span>
+                <span class="text-xs text-gray-500">.gp5 format</span>
+            </a>
+            {% endif %}
+            {% if job.output_midi %}
+            <a href="/jobs/{{ job.id }}/download/{{ job.output_midi }}"
+               class="flex flex-col items-center bg-brand-surface rounded-lg border border-white/10 p-4 hover:border-brand-electric/50 transition">
+                <span class="text-2xl mb-1">🎵</span>
+                <span class="text-sm font-medium">MIDI</span>
+                <span class="text-xs text-gray-500">DAW import</span>
+            </a>
+            {% endif %}
+            {% if job.output_tab %}
+            <a href="/jobs/{{ job.id }}/download/{{ job.output_tab }}"
+               class="flex flex-col items-center bg-brand-surface rounded-lg border border-white/10 p-4 hover:border-brand-electric/50 transition">
+                <span class="text-2xl mb-1">📝</span>
+                <span class="text-sm font-medium">ASCII Tab</span>
+                <span class="text-xs text-gray-500">Plain text</span>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Stats -->
+        <div class="bg-brand-surface rounded-lg border border-white/10 p-4">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-brand-electric">{{ job.note_count }}</div>
+                    <div class="text-xs text-gray-500">Notes detected</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-brand-gold">{{ job.tuning }}</div>
+                    <div class="text-xs text-gray-500">Tuning</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-400">{{ job.model }}</div>
+                    <div class="text-xs text-gray-500">Model</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ASCII Tab Preview -->
+        {% if job.output_tab %}
+        <div class="bg-brand-surface rounded-lg border border-white/10 p-4">
+            <h3 class="text-sm font-semibold text-gray-400 mb-3">Tab Preview</h3>
+            <pre class="font-mono text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto" id="tab-preview">Loading...</pre>
+        </div>
+        <script>
+            fetch('/jobs/{{ job.id }}/download/{{ job.output_tab }}')
+                .then(r => r.text())
+                .then(text => document.getElementById('tab-preview').textContent = text);
+        </script>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Error -->
+    {% if job.status == 'failed' %}
+    <div class="mt-8 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+        <h3 class="text-red-400 font-semibold mb-2">Processing Failed</h3>
+        <p class="text-sm text-red-300">{{ job.error }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Back Link -->
+    <div class="mt-8">
+        <a href="/" class="text-sm text-gray-500 hover:text-brand-electric transition">&larr; Upload another file</a>
+    </div>
+</div>
+{% endblock %}

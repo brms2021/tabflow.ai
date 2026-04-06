@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TabFlow.ai{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            deep: '#004080',
+                            electric: '#0080FF',
+                            slate: '#1A1A2E',
+                            surface: '#242842',
+                            gold: '#FFB800',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+    </style>
+</head>
+<body class="bg-brand-slate text-gray-100 min-h-screen">
+    <!-- Nav -->
+    <nav class="border-b border-white/10 bg-brand-slate/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2">
+                <span class="text-2xl font-bold text-brand-electric">TabFlow</span>
+                <span class="text-sm text-brand-gold font-medium">.ai</span>
+            </a>
+            <div class="flex items-center gap-6 text-sm">
+                <a href="/" class="hover:text-brand-electric transition">Upload</a>
+                <a href="/dashboard" class="hover:text-brand-electric transition">Dashboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="max-w-6xl mx-auto px-6 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 mt-16">
+        <div class="max-w-6xl mx-auto px-6 py-6 text-center text-sm text-gray-500">
+            TabFlow.ai &mdash; Audio in. Tabs out.
+        </div>
+    </footer>
+</body>
+</html>

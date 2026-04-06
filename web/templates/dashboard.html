@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — TabFlow.ai{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Your Jobs</h1>
+
+{% if jobs %}
+<div class="space-y-2">
+    {% for job in jobs %}
+    <a href="/jobs/{{ job.id }}" class="flex items-center justify-between bg-brand-surface rounded-lg border border-white/5 px-5 py-4 hover:border-brand-electric/30 transition">
+        <div>
+            <span class="font-medium">{{ job.filename }}</span>
+            <div class="text-xs text-gray-500 mt-0.5">
+                {{ job.tuning }} &bull; {{ job.created_at.strftime('%Y-%m-%d %H:%M') }}
+                {% if job.note_count %}&bull; {{ job.note_count }} notes{% endif %}
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            {% if job.status == 'completed' %}
+            <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">completed</span>
+            {% elif job.status == 'processing' %}
+            <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{{ "%.0f"|format(job.progress) }}%</span>
+            {% elif job.status == 'failed' %}
+            <span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">failed</span>
+            {% else %}
+            <span class="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">pending</span>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16 text-gray-500">
+    <p class="text-lg mb-4">No jobs yet</p>
+    <a href="/" class="text-brand-electric hover:underline">Upload your first track &rarr;</a>
+</div>
+{% endif %}
+{% endblock %}

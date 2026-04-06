@@ -30,6 +30,10 @@ data/processed/
 # Trained model weights (too large for repo)
 models/*.pt
 
+# Web app
+uploads/
+*.db
+
 # OS
 Thumbs.db
 .DS_Store
