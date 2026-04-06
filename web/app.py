@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -243,7 +243,7 @@ async def record_page(request: Request):
 
 
 @app.websocket("/ws/transcribe")
-async def ws_transcribe(websocket):
+async def ws_transcribe(websocket: WebSocket):
     """WebSocket endpoint for real-time audio transcription.
 
     Client sends audio chunks (WAV bytes), server returns note events + tab.
