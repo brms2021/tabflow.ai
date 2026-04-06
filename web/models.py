@@ -38,6 +38,18 @@ class Job(Base):
     output_gp5 = Column(String(255), nullable=True)
 
 
+class Correction(Base):
+    __tablename__ = "corrections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(36), nullable=False)
+    note_index = Column(Integer, nullable=False)
+    corrected_string = Column(Integer, nullable=False)
+    corrected_fret = Column(Integer, nullable=False)
+    corrected_technique = Column(String(50), default="normal")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

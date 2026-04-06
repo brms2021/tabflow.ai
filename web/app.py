@@ -232,6 +232,176 @@ async def _run_pipeline(job_id: str, input_path: Path, tuning: str, model: str, 
 
 
 # ---------------------------------------------------------------------------
+# Live Recording & Transcription
+# ---------------------------------------------------------------------------
+
+
+@app.get("/record", response_class=HTMLResponse)
+async def record_page(request: Request):
+    """Live recording page with interactive tab editor."""
+    return _render(request, "record.html")
+
+
+@app.websocket("/ws/transcribe")
+async def ws_transcribe(websocket):
+    """WebSocket endpoint for real-time audio transcription.
+
+    Client sends audio chunks (WAV bytes), server returns note events + tab.
+    """
+
+    await websocket.accept()
+    logger.info("WebSocket transcription session started")
+
+    accumulated_notes = []
+    chunk_count = 0
+
+    try:
+        while True:
+            # Receive audio chunk as bytes
+            audio_bytes = await websocket.receive_bytes()
+            chunk_count += 1
+
+            # Save chunk to temp file and transcribe
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = tmp.name
+
+            try:
+                from tab_ripper.tabber import STANDARD_TUNING, assign_frets, filter_notes
+                from tab_ripper.transcriber import transcribe
+
+                # Transcribe this chunk
+                midi_data, note_events = await asyncio.to_thread(
+                    transcribe,
+                    tmp_path,
+                    backend="basic-pitch",
+                )
+
+                # Filter and assign frets
+                if note_events:
+                    filtered = filter_notes(note_events, tuning=STANDARD_TUNING)
+                    events = assign_frets(filtered, tuning=STANDARD_TUNING)
+
+                    # Build response with note data
+                    notes_json = []
+                    for evt in events:
+                        for note in evt.notes:
+                            notes_json.append(
+                                {
+                                    "time": round(evt.time, 3),
+                                    "string": note.string,
+                                    "fret": note.fret,
+                                    "pitch": note.midi_pitch,
+                                    "duration": round(note.duration, 3),
+                                    "technique": "normal",
+                                }
+                            )
+
+                    accumulated_notes.extend(notes_json)
+
+                    await websocket.send_json(
+                        {
+                            "type": "notes",
+                            "chunk": chunk_count,
+                            "notes": notes_json,
+                            "total_notes": len(accumulated_notes),
+                        }
+                    )
+                else:
+                    await websocket.send_json(
+                        {
+                            "type": "empty",
+                            "chunk": chunk_count,
+                        }
+                    )
+
+            finally:
+                import os
+
+                os.unlink(tmp_path)
+
+    except Exception as e:
+        logger.info("WebSocket session ended: %s", e)
+
+
+@app.post("/api/jobs/{job_id}/correct")
+async def correct_note(job_id: str, request: Request):
+    """Save a user's note correction for training."""
+    body = await request.json()
+    note_index = body.get("note_index")
+    corrected_string = body.get("string")
+    corrected_fret = body.get("fret")
+    corrected_technique = body.get("technique", "normal")
+
+    # Save correction to database
+    from sqlalchemy import text
+
+    from .models import async_session
+
+    async with async_session() as session:
+        # Store in a corrections log (we'll create the table on first use)
+        await session.execute(
+            text("""
+                INSERT OR IGNORE INTO corrections (job_id, note_index, corrected_string, corrected_fret, corrected_technique, created_at)
+                VALUES (:job_id, :note_index, :string, :fret, :technique, :created_at)
+            """),
+            {
+                "job_id": job_id,
+                "note_index": note_index,
+                "string": corrected_string,
+                "fret": corrected_fret,
+                "technique": corrected_technique,
+                "created_at": datetime.utcnow().isoformat(),
+            },
+        )
+        await session.commit()
+
+    return {"status": "saved", "note_index": note_index}
+
+
+@app.post("/api/record/save")
+async def save_recording(request: Request):
+    """Save a completed recording session with its transcription and corrections."""
+    body = await request.json()
+    notes = body.get("notes", [])
+    corrections = body.get("corrections", {})
+
+    # Create a new job-like entry for the recording
+    job_id = str(uuid.uuid4())
+    job_dir = settings.upload_dir / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    import json
+
+    # Save the corrected notes as training data
+    training_data = {
+        "source": "live_recording",
+        "job_id": job_id,
+        "note_count": len(notes),
+        "correction_count": len(corrections),
+        "notes": notes,
+        "corrections": corrections,
+    }
+
+    output_path = job_dir / "corrected_training_data.json"
+    output_path.write_text(json.dumps(training_data, indent=2))
+
+    # Also save to the training data directory
+    corrections_dir = Path("data/corrections")
+    corrections_dir.mkdir(parents=True, exist_ok=True)
+    (corrections_dir / f"{job_id}.json").write_text(json.dumps(training_data, indent=2))
+
+    return {
+        "status": "saved",
+        "job_id": job_id,
+        "notes": len(notes),
+        "corrections": len(corrections),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Downloads
 # ---------------------------------------------------------------------------
 
