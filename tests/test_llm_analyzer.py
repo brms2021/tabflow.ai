@@ -1,12 +1,12 @@
 """Tests for tab_ripper.llm_analyzer — JSON parsing, phrase splitting."""
 
-
 from tab_ripper.llm_analyzer import _parse_json_response, split_into_phrases
 from tab_ripper.tabber import TabEvent, TabNote
 
 # -----------------------------------------------------------------------
 # _parse_json_response
 # -----------------------------------------------------------------------
+
 
 class TestParseJsonResponse:
     def test_raw_json_array(self):
@@ -56,6 +56,7 @@ class TestParseJsonResponse:
 # -----------------------------------------------------------------------
 # split_into_phrases
 # -----------------------------------------------------------------------
+
 
 def _make_events(times: list[float]) -> list[TabEvent]:
     return [

@@ -21,6 +21,7 @@ from tab_ripper.tabber import (
 # parse_tuning
 # -----------------------------------------------------------------------
 
+
 class TestParseTuning:
     def test_standard_preset(self):
         pitches, names = parse_tuning("standard")
@@ -65,6 +66,7 @@ class TestParseTuning:
 # tuning_freq_range
 # -----------------------------------------------------------------------
 
+
 class TestTuningFreqRange:
     def test_standard_range(self):
         min_hz, max_hz = tuning_freq_range(STANDARD_TUNING)
@@ -81,6 +83,7 @@ class TestTuningFreqRange:
 # -----------------------------------------------------------------------
 # pitch_to_fret_options
 # -----------------------------------------------------------------------
+
 
 class TestPitchToFretOptions:
     def test_open_low_e(self):
@@ -112,6 +115,7 @@ class TestPitchToFretOptions:
 # filter_notes
 # -----------------------------------------------------------------------
 
+
 def _make_raw_events(notes: list[tuple]) -> list[tuple]:
     """Create raw note event tuples: (start, end, pitch, amplitude, bends)."""
     return [(s, e, p, a, []) for s, e, p, a in notes]
@@ -119,38 +123,46 @@ def _make_raw_events(notes: list[tuple]) -> list[tuple]:
 
 class TestFilterNotes:
     def test_amplitude_filter(self):
-        events = _make_raw_events([
-            (0.0, 1.0, 60, 0.8),  # keep
-            (1.0, 2.0, 62, 0.1),  # drop
-        ])
+        events = _make_raw_events(
+            [
+                (0.0, 1.0, 60, 0.8),  # keep
+                (1.0, 2.0, 62, 0.1),  # drop
+            ]
+        )
         result = filter_notes(events, amplitude_threshold=0.4)
         assert len(result) == 1
         assert result[0].pitch == 60
 
     def test_range_filter(self):
-        events = _make_raw_events([
-            (0.0, 1.0, 60, 0.8),   # in range
-            (1.0, 2.0, 30, 0.8),   # below guitar range
-            (2.0, 3.0, 100, 0.8),  # above guitar range
-        ])
+        events = _make_raw_events(
+            [
+                (0.0, 1.0, 60, 0.8),  # in range
+                (1.0, 2.0, 30, 0.8),  # below guitar range
+                (2.0, 3.0, 100, 0.8),  # above guitar range
+            ]
+        )
         result = filter_notes(events, amplitude_threshold=0.0)
         assert all(40 <= n.pitch <= 88 for n in result)
 
     def test_short_note_filter(self):
-        events = _make_raw_events([
-            (0.0, 1.0, 60, 0.8),    # long enough
-            (2.0, 2.01, 62, 0.8),   # 10ms, too short (isolated)
-        ])
+        events = _make_raw_events(
+            [
+                (0.0, 1.0, 60, 0.8),  # long enough
+                (2.0, 2.01, 62, 0.8),  # 10ms, too short (isolated)
+            ]
+        )
         result = filter_notes(events, amplitude_threshold=0.0, min_duration_ms=50)
         pitches = [n.pitch for n in result]
         assert 60 in pitches
 
     def test_deduplication(self):
         # Two near-simultaneous notes at same pitch
-        events = _make_raw_events([
-            (0.0, 1.0, 60, 0.8),
-            (0.02, 1.0, 60, 0.6),  # duplicate
-        ])
+        events = _make_raw_events(
+            [
+                (0.0, 1.0, 60, 0.8),
+                (0.02, 1.0, 60, 0.6),  # duplicate
+            ]
+        )
         result = filter_notes(events, amplitude_threshold=0.0)
         assert len(result) == 1
         assert result[0].amplitude == 0.8  # kept louder one
@@ -168,6 +180,7 @@ class TestFilterNotes:
 # assign_frets (Viterbi)
 # -----------------------------------------------------------------------
 
+
 class TestAssignFrets:
     def test_single_note(self):
         notes = [NoteEvent(0.0, 1.0, 60, 0.8, 100)]
@@ -181,10 +194,7 @@ class TestAssignFrets:
         """An ascending scale should stay in a reasonable fret range."""
         # C major scale: C4-D4-E4-F4-G4 (spans 7 semitones across strings)
         pitches = [60, 62, 64, 65, 67]
-        notes = [
-            NoteEvent(i * 0.2, i * 0.2 + 0.15, p, 0.8, 100)
-            for i, p in enumerate(pitches)
-        ]
+        notes = [NoteEvent(i * 0.2, i * 0.2 + 0.15, p, 0.8, 100) for i, p in enumerate(pitches)]
         events = assign_frets(notes)
         frets = [e.notes[0].fret for e in events]
         fret_span = max(frets) - min(frets)
@@ -193,10 +203,7 @@ class TestAssignFrets:
 
     def test_all_notes_have_correct_pitch(self):
         """Every assigned (string, fret) must produce the original MIDI pitch."""
-        notes = [
-            NoteEvent(i * 0.3, i * 0.3 + 0.2, p, 0.8, 100)
-            for i, p in enumerate([40, 45, 50, 55, 59, 64, 67, 71])
-        ]
+        notes = [NoteEvent(i * 0.3, i * 0.3 + 0.2, p, 0.8, 100) for i, p in enumerate([40, 45, 50, 55, 59, 64, 67, 71])]
         events = assign_frets(notes)
         for event in events:
             for note in event.notes:
@@ -229,12 +236,12 @@ class TestAssignFrets:
 # render_ascii_tab
 # -----------------------------------------------------------------------
 
+
 class TestRenderAsciiTab:
     def _make_event(self, time, string, fret, pitch=60):
         return TabEvent(
             time=time,
-            notes=[TabNote(time=time, duration=0.5, midi_pitch=pitch,
-                           string=string, fret=fret, velocity=100)],
+            notes=[TabNote(time=time, duration=0.5, midi_pitch=pitch, string=string, fret=fret, velocity=100)],
         )
 
     def test_basic_output(self):
@@ -265,6 +272,7 @@ class TestRenderAsciiTab:
 # -----------------------------------------------------------------------
 # format_tab_header
 # -----------------------------------------------------------------------
+
 
 class TestFormatTabHeader:
     def test_contains_title(self):

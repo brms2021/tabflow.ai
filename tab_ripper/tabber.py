@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TUNING_PRESETS = {
-    "standard":  ([40, 45, 50, 55, 59, 64], ["E", "A", "D", "G", "B", "e"]),
-    "drop-d":    ([38, 45, 50, 55, 59, 64], ["D", "A", "D", "G", "B", "e"]),
-    "d":         ([38, 43, 48, 53, 57, 62], ["D", "G", "C", "F", "A", "d"]),
-    "7-string":  ([35, 40, 45, 50, 55, 59, 64], ["B", "E", "A", "D", "G", "B", "e"]),
-    "drop-a7":   ([33, 40, 45, 50, 55, 59, 64], ["A", "E", "A", "D", "G", "B", "e"]),
+    "standard": ([40, 45, 50, 55, 59, 64], ["E", "A", "D", "G", "B", "e"]),
+    "drop-d": ([38, 45, 50, 55, 59, 64], ["D", "A", "D", "G", "B", "e"]),
+    "d": ([38, 43, 48, 53, 57, 62], ["D", "G", "C", "F", "A", "d"]),
+    "7-string": ([35, 40, 45, 50, 55, 59, 64], ["B", "E", "A", "D", "G", "B", "e"]),
+    "drop-a7": ([33, 40, 45, 50, 55, 59, 64], ["A", "E", "A", "D", "G", "B", "e"]),
 }
 
 STANDARD_TUNING = TUNING_PRESETS["standard"][0]
@@ -85,9 +85,11 @@ def tuning_freq_range(tuning: list[int]) -> tuple[float, float]:
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class NoteEvent:
     """A note with amplitude/confidence from transcription."""
+
     start: float
     end: float
     pitch: int
@@ -102,17 +104,19 @@ class NoteEvent:
 @dataclass
 class TabNote:
     """A single note positioned on the fretboard."""
+
     time: float
     duration: float
     midi_pitch: int
-    string: int        # 0 = lowest string
-    fret: int          # 0-24
+    string: int  # 0 = lowest string
+    fret: int  # 0-24
     velocity: int
 
 
 @dataclass
 class TabEvent:
     """A group of simultaneous notes (a 'column' in tab)."""
+
     time: float
     notes: list[TabNote]
 
@@ -120,6 +124,7 @@ class TabEvent:
 # ---------------------------------------------------------------------------
 # Note filtering
 # ---------------------------------------------------------------------------
+
 
 def filter_notes(
     note_events: list[tuple],
@@ -153,13 +158,15 @@ def filter_notes(
     notes = []
     for ev in note_events:
         start, end, pitch, amplitude = ev[0], ev[1], ev[2], ev[3]
-        notes.append(NoteEvent(
-            start=start,
-            end=end,
-            pitch=int(pitch),
-            amplitude=float(amplitude),
-            velocity=min(127, max(1, int(amplitude * 127))),
-        ))
+        notes.append(
+            NoteEvent(
+                start=start,
+                end=end,
+                pitch=int(pitch),
+                amplitude=float(amplitude),
+                velocity=min(127, max(1, int(amplitude * 127))),
+            )
+        )
 
     original_count = len(notes)
 
@@ -197,8 +204,10 @@ def filter_notes(
     for note in notes:
         is_dup = False
         for existing in deduped:
-            if (abs(note.start - existing.start) <= dedup_time_s and
-                    abs(note.pitch - existing.pitch) <= dedup_semitone_range):
+            if (
+                abs(note.start - existing.start) <= dedup_time_s
+                and abs(note.pitch - existing.pitch) <= dedup_semitone_range
+            ):
                 is_dup = True
                 break
         if not is_dup:
@@ -227,7 +236,12 @@ def filter_notes(
 
     logger.info(
         "%d -> amp:%d range:%d short:%d dedup:%d cap:%d",
-        original_count, after_amp, after_range, after_short, after_dedup, len(notes),
+        original_count,
+        after_amp,
+        after_range,
+        after_short,
+        after_dedup,
+        len(notes),
     )
 
     return notes
@@ -236,6 +250,7 @@ def filter_notes(
 # ---------------------------------------------------------------------------
 # Fret mapping helpers
 # ---------------------------------------------------------------------------
+
 
 def pitch_to_fret_options(pitch: int, tuning: list[int] = STANDARD_TUNING) -> list[tuple[int, int]]:
     """Return all valid (string, fret) pairs for a MIDI pitch."""
@@ -250,6 +265,7 @@ def pitch_to_fret_options(pitch: int, tuning: list[int] = STANDARD_TUNING) -> li
 # ---------------------------------------------------------------------------
 # Viterbi fret assignment
 # ---------------------------------------------------------------------------
+
 
 def _enumerate_configs(
     note_pitches: list[int],
@@ -339,9 +355,7 @@ def _transition_cost(
     if time_gap < 0.1:
         prev_strings = {s for s, _ in prev_config}
         curr_strings = {s for s, _ in curr_config}
-        min_string_gap = min(
-            abs(cs - ps) for cs in curr_strings for ps in prev_strings
-        )
+        min_string_gap = min(abs(cs - ps) for cs in curr_strings for ps in prev_strings)
         if min_string_gap <= 1:
             shift_cost = max(0, shift_cost - 2.0)
         elif min_string_gap >= 3:
@@ -470,14 +484,16 @@ def assign_frets(
         # Match config entries to notes (same order as pitches were given)
         playable_notes = [n for n in group if pitch_to_fret_options(n.pitch, tuning)]
         for note, (string, fret) in zip(playable_notes, config):
-            tab_notes.append(TabNote(
-                time=note.start,
-                duration=note.duration,
-                midi_pitch=note.pitch,
-                string=string,
-                fret=fret,
-                velocity=note.velocity,
-            ))
+            tab_notes.append(
+                TabNote(
+                    time=note.start,
+                    duration=note.duration,
+                    midi_pitch=note.pitch,
+                    string=string,
+                    fret=fret,
+                    velocity=note.velocity,
+                )
+            )
 
         if tab_notes:
             events.append(TabEvent(time=tab_notes[0].time, notes=tab_notes))
@@ -521,14 +537,16 @@ def assign_frets_greedy(
                 return abs(f - _lf) + f * 0.3 + (10 if s in used_strings else 0)
 
             best_string, best_fret = min(available, key=score)
-            tab_notes.append(TabNote(
-                time=note.start,
-                duration=note.duration,
-                midi_pitch=note.pitch,
-                string=best_string,
-                fret=best_fret,
-                velocity=note.velocity,
-            ))
+            tab_notes.append(
+                TabNote(
+                    time=note.start,
+                    duration=note.duration,
+                    midi_pitch=note.pitch,
+                    string=best_string,
+                    fret=best_fret,
+                    velocity=note.velocity,
+                )
+            )
             used_strings.add(best_string)
             last_fret = best_fret
 
@@ -542,6 +560,7 @@ def assign_frets_greedy(
 # ASCII rendering
 # ---------------------------------------------------------------------------
 
+
 def render_ascii_tab(
     events: list[TabEvent],
     tuning: list[int] = STANDARD_TUNING,
@@ -554,7 +573,7 @@ def render_ascii_tab(
         return "(no notes detected)"
 
     if string_names is None:
-        string_names = STRING_NAMES[:len(tuning)]
+        string_names = STRING_NAMES[: len(tuning)]
 
     max_time = max(e.time for e in events) + 1.0
     total_columns = int(max_time / time_resolution) + 1
@@ -593,9 +612,7 @@ def format_tab_header(
     string_names: list[str] | None = None,
 ) -> str:
     """Generate a header for the tablature output."""
-    tuning_str = " ".join(
-        pretty_midi.note_number_to_name(p) for p in tuning
-    )
+    tuning_str = " ".join(pretty_midi.note_number_to_name(p) for p in tuning)
     if string_names is not None:
         tuning_str += f"  ({' '.join(string_names)})"
     return (

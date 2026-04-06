@@ -39,9 +39,13 @@ def separate(
     output_dir = Path(output_dir).resolve()
 
     cmd = [
-        sys.executable, "-m", "demucs",
-        "--out", str(output_dir),
-        "--name", model,
+        sys.executable,
+        "-m",
+        "demucs",
+        "--out",
+        str(output_dir),
+        "--name",
+        model,
         str(audio_path),
     ]
     if two_stems:

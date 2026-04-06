@@ -39,37 +39,58 @@ def _setup_logging(verbose: bool) -> None:
 
 @click.command()
 @click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
-@click.option("--output", "-o", type=click.Path(path_type=Path), default=None,
-              help="Output directory for stems, MIDI, and tab files.")
-@click.option("--model", "-m", default="htdemucs",
-              help="Demucs model: htdemucs (4-stem) or htdemucs_6s (6-stem with guitar).")
-@click.option("--onset-threshold", default=0.6, type=float,
-              help="Note onset confidence threshold (0-1). Higher = fewer ghost notes.")
-@click.option("--frame-threshold", default=0.4, type=float,
-              help="Frame activation threshold (0-1).")
-@click.option("--resolution", "-r", default=0.1, type=float,
-              help="Time resolution in seconds per tab column. Lower = more detail.")
-@click.option("--tuning", "-t", default="standard",
-              help="Guitar tuning. Presets: standard, drop-d, d, 7-string, drop-a7. "
-                   "Or comma-separated notes like 'B1,E2,A2,D3,G3,B3,E4'.")
-@click.option("--amplitude-threshold", default=0.4, type=float,
-              help="Note amplitude/confidence filter (0-1). Higher = fewer notes, less noise.")
-@click.option("--min-note-length", default=50.0, type=float,
-              help="Minimum note duration in ms (filters noise blips).")
-@click.option("--pdf/--no-pdf", default=True,
-              help="Generate PDF tablature output.")
-@click.option("--llm/--no-llm", default=True,
-              help="Use Claude to refine fret assignments and identify techniques.")
-@click.option("--llm-model", default="claude-sonnet-4-6",
-              help="Claude model for technique analysis.")
-@click.option("--llm-max-phrases", default=20, type=int,
-              help="Max number of phrases to send to LLM (caps API calls). 0 = unlimited.")
-@click.option("--skip-separation", is_flag=True,
-              help="Skip Demucs and use the input file directly (if already isolated).")
-@click.option("--width", "-w", default=80, type=int,
-              help="Tab line width in characters.")
-@click.option("--verbose", "-v", is_flag=True,
-              help="Enable debug logging.")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output directory for stems, MIDI, and tab files.",
+)
+@click.option(
+    "--model", "-m", default="htdemucs", help="Demucs model: htdemucs (4-stem) or htdemucs_6s (6-stem with guitar)."
+)
+@click.option(
+    "--onset-threshold",
+    default=0.6,
+    type=float,
+    help="Note onset confidence threshold (0-1). Higher = fewer ghost notes.",
+)
+@click.option("--frame-threshold", default=0.4, type=float, help="Frame activation threshold (0-1).")
+@click.option(
+    "--resolution",
+    "-r",
+    default=0.1,
+    type=float,
+    help="Time resolution in seconds per tab column. Lower = more detail.",
+)
+@click.option(
+    "--tuning",
+    "-t",
+    default="standard",
+    help="Guitar tuning. Presets: standard, drop-d, d, 7-string, drop-a7. "
+    "Or comma-separated notes like 'B1,E2,A2,D3,G3,B3,E4'.",
+)
+@click.option(
+    "--amplitude-threshold",
+    default=0.4,
+    type=float,
+    help="Note amplitude/confidence filter (0-1). Higher = fewer notes, less noise.",
+)
+@click.option("--min-note-length", default=50.0, type=float, help="Minimum note duration in ms (filters noise blips).")
+@click.option("--pdf/--no-pdf", default=True, help="Generate PDF tablature output.")
+@click.option("--llm/--no-llm", default=True, help="Use Claude to refine fret assignments and identify techniques.")
+@click.option("--llm-model", default="claude-sonnet-4-6", help="Claude model for technique analysis.")
+@click.option(
+    "--llm-max-phrases",
+    default=20,
+    type=int,
+    help="Max number of phrases to send to LLM (caps API calls). 0 = unlimited.",
+)
+@click.option(
+    "--skip-separation", is_flag=True, help="Skip Demucs and use the input file directly (if already isolated)."
+)
+@click.option("--width", "-w", default=80, type=int, help="Tab line width in characters.")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
 def main(
     audio_file: Path,
     output: Path | None,
@@ -148,6 +169,7 @@ def main(
     if llm:
         logger.info("Step 4b/5: Refining with LLM technique analysis...")
         from .llm_analyzer import analyze_and_refine
+
         events, annotations = analyze_and_refine(
             events,
             tuning=tuning_pitches,
@@ -163,12 +185,18 @@ def main(
     duration = max(e.time for e in events) if events else 0.0
 
     header = format_tab_header(
-        track_name, note_count, duration,
-        tuning=tuning_pitches, string_names=string_names,
+        track_name,
+        note_count,
+        duration,
+        tuning=tuning_pitches,
+        string_names=string_names,
     )
     tab_text = render_ascii_tab(
-        events, tuning=tuning_pitches, string_names=string_names,
-        columns_per_line=width, time_resolution=resolution,
+        events,
+        tuning=tuning_pitches,
+        string_names=string_names,
+        columns_per_line=width,
+        time_resolution=resolution,
     )
 
     full_tab = header + "\n" + tab_text
@@ -184,9 +212,11 @@ def main(
     pdf_path = None
     if pdf:
         from .pdf_renderer import render_pdf
+
         pdf_path = output / f"{track_name}.tab.pdf"
         render_pdf(
-            events, pdf_path,
+            events,
+            pdf_path,
             title=track_name,
             tuning=tuning_pitches,
             string_names=string_names,

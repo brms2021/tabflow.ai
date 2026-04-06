@@ -25,18 +25,18 @@ TECHNIQUE_LABELS = {
 # ---------------------------------------------------------------------------
 # Layout constants (A4, points)
 # ---------------------------------------------------------------------------
-PAGE_WIDTH = 595.28   # A4
+PAGE_WIDTH = 595.28  # A4
 PAGE_HEIGHT = 841.89
 MARGIN_LEFT = 50
 MARGIN_RIGHT = 40
 MARGIN_TOP = 55
 MARGIN_BOTTOM = 40
 
-STRING_SPACING = 12       # points between tab lines
-LABEL_WIDTH = 18          # space for string name labels
-MIN_NOTE_GAP = 14         # minimum horizontal gap between note columns
-SYSTEM_GAP = 30           # vertical space between systems
-HEADER_HEIGHT = 80        # space for title block on first page
+STRING_SPACING = 12  # points between tab lines
+LABEL_WIDTH = 18  # space for string name labels
+MIN_NOTE_GAP = 14  # minimum horizontal gap between note columns
+SYSTEM_GAP = 30  # vertical space between systems
+HEADER_HEIGHT = 80  # space for title block on first page
 
 FONT_NAME = "Courier"
 FONT_SIZE_FRET = 9
@@ -73,7 +73,7 @@ def render_pdf(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if string_names is None:
-        string_names = STRING_NAMES[:len(tuning)]
+        string_names = STRING_NAMES[: len(tuning)]
 
     num_strings = len(tuning)
     system_height = STRING_SPACING * (num_strings - 1)
@@ -111,14 +111,16 @@ def render_pdf(
 
         # Build per-system technique map using original indices
         sys_technique_map = {
-            i: technique_map[event_offset + i]
-            for i in range(len(system_events))
-            if (event_offset + i) in technique_map
+            i: technique_map[event_offset + i] for i in range(len(system_events)) if (event_offset + i) in technique_map
         }
 
         _draw_system(
-            page, y_cursor, system_events,
-            num_strings, string_names, usable_width,
+            page,
+            y_cursor,
+            system_events,
+            num_strings,
+            string_names,
+            usable_width,
             technique_map=sys_technique_map,
         )
         event_offset += len(system_events)
@@ -191,7 +193,7 @@ def _time_to_width(time_gap: float) -> float:
     if time_gap < 0.01:
         return MIN_NOTE_GAP
     # Sqrt scaling: 0.1s -> ~18pt, 0.5s -> ~40pt, 1.0s -> ~56pt
-    width = MIN_NOTE_GAP + (time_gap ** 0.5) * 40
+    width = MIN_NOTE_GAP + (time_gap**0.5) * 40
     return min(width, 80)  # cap max gap
 
 
@@ -254,9 +256,7 @@ def _draw_header(
     y += FONT_SIZE_TITLE + 8
 
     # Tuning info
-    tuning_str = "Tuning: " + " ".join(string_names) + "  (" + " ".join(
-        pm.note_number_to_name(p) for p in tuning
-    ) + ")"
+    tuning_str = "Tuning: " + " ".join(string_names) + "  (" + " ".join(pm.note_number_to_name(p) for p in tuning) + ")"
     page.insert_text(
         (MARGIN_LEFT, y + FONT_SIZE_SUBTITLE),
         tuning_str,
@@ -339,8 +339,10 @@ def _draw_system(
 
             # White background to clear the line behind the number
             rect = fitz.Rect(
-                x - 1, y - 5,
-                x + text_width + 1, y + 3,
+                x - 1,
+                y - 5,
+                x + text_width + 1,
+                y + 3,
             )
             page.draw_rect(rect, color=None, fill=(1, 1, 1))
 
