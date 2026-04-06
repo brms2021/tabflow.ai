@@ -47,7 +47,16 @@ def _setup_logging(verbose: bool) -> None:
     help="Output directory for stems, MIDI, and tab files.",
 )
 @click.option(
-    "--model", "-m", default="htdemucs", help="Demucs model: htdemucs (4-stem) or htdemucs_6s (6-stem with guitar)."
+    "--model",
+    "-m",
+    default="htdemucs_ft",
+    help="Demucs model: htdemucs_ft (fine-tuned, best quality), htdemucs, or htdemucs_6s (6-stem with guitar).",
+)
+@click.option(
+    "--transcriber",
+    default="basic-pitch",
+    type=click.Choice(["basic-pitch", "mt3"]),
+    help="Transcription backend: basic-pitch (mono, fast) or mt3 (polyphonic, slower).",
 )
 @click.option(
     "--onset-threshold",
@@ -98,6 +107,7 @@ def main(
     audio_file: tuple[Path, ...],
     output: Path | None,
     model: str,
+    transcriber: str,
     onset_threshold: float,
     frame_threshold: float,
     resolution: float,
@@ -136,6 +146,7 @@ def main(
                 single_file,
                 output=output,
                 model=model,
+                transcriber=transcriber,
                 onset_threshold=onset_threshold,
                 frame_threshold=frame_threshold,
                 resolution=resolution,
@@ -171,6 +182,7 @@ def _process_file(
     *,
     output: Path | None,
     model: str,
+    transcriber: str,
     onset_threshold: float,
     frame_threshold: float,
     resolution: float,
@@ -218,6 +230,7 @@ def _process_file(
     midi_path = output / f"{track_name}.mid"
     midi_data, note_events = transcribe(
         guitar_path,
+        backend=transcriber,
         onset_threshold=onset_threshold,
         frame_threshold=frame_threshold,
         minimum_frequency=min_freq,
