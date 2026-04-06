@@ -11,13 +11,8 @@
         </div>
     </div>
 
-    <!-- Progress Section (polls via HTMX) -->
-    <div id="progress-container"
-         {% if job.status in ['pending', 'processing'] %}
-         hx-get="/jobs/{{ job.id }}/progress"
-         hx-trigger="every 2s"
-         hx-swap="innerHTML"
-         {% endif %}>
+    <!-- Progress Section — partial manages its own HTMX polling -->
+    <div id="progress-container">
         {% include "partials/progress.html" %}
     </div>
 

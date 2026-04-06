@@ -1,11 +1,29 @@
 <!-- HTMX partial: progress bar + status -->
 {% if job.status == 'completed' %}
-<!-- Trigger full page reload to show downloads -->
-<script>window.location.reload();</script>
+<!-- Stop polling and redirect to show downloads -->
+<div hx-swap-oob="true" id="progress-container">
+    <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-6 text-center">
+        <div class="text-3xl mb-2">&#10003;</div>
+        <p class="text-green-400 font-semibold">Complete! {{ job.note_count }} notes detected.</p>
+        <a href="/jobs/{{ job.id }}" class="inline-block mt-3 bg-brand-electric text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-deep transition">
+            View Results & Download
+        </a>
+    </div>
+</div>
 {% elif job.status == 'failed' %}
-<script>window.location.reload();</script>
+<div hx-swap-oob="true" id="progress-container">
+    <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-6">
+        <h3 class="text-red-400 font-semibold mb-2">Processing Failed</h3>
+        <p class="text-sm text-red-300">{{ job.error }}</p>
+        <a href="/" class="inline-block mt-3 text-sm text-gray-400 hover:text-brand-electric">&larr; Try again</a>
+    </div>
+</div>
 {% else %}
-<div class="bg-brand-surface rounded-lg border border-white/10 p-6">
+<div class="bg-brand-surface rounded-lg border border-white/10 p-6"
+     hx-get="/jobs/{{ job.id }}/progress"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+
     <div class="flex items-center justify-between mb-3">
         <span class="text-sm font-medium">{{ job.step or 'Starting...' }}</span>
         <span class="text-sm text-brand-electric font-mono">{{ "%.0f"|format(job.progress) }}%</span>
@@ -21,7 +39,7 @@
 
     <!-- Step Indicators -->
     <div class="flex justify-between mt-4 text-xs text-gray-500">
-        {% set steps = ['Transcribe', 'Filter', 'Fret Assign', 'LLM', 'Render'] %}
+        {% set steps = ['Transcribe', 'Filter', 'Fret Assign', 'Techniques', 'Render'] %}
         {% set thresholds = [10, 50, 65, 75, 90] %}
         {% for step in steps %}
         <div class="flex flex-col items-center gap-1">
