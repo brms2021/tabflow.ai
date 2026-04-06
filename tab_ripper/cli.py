@@ -355,5 +355,55 @@ def _process_file(
         click.echo(f"  Stems: {output / 'stems'}")
 
 
+@click.command("align-tab")
+@click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("tab_pdf", type=click.Path(exists=True, path_type=Path))
+@click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Output JSON path.")
+@click.option("--tuning", "-t", default=None, help="Override tuning (standard, drop-d, etc.).")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
+def align_tab(audio_file: Path, tab_pdf: Path, output: Path | None, tuning: str | None, verbose: bool):
+    """Align a PDF tab with its audio file for training data."""
+    _setup_logging(verbose)
+    from .aligner import align_tab_to_audio, save_aligned_dataset
+    from .tab_parser import parse_tab_pdf
+
+    gt = parse_tab_pdf(tab_pdf)
+    click.echo(f"Parsed {len(gt.notes)} notes from {tab_pdf.name}")
+
+    aligned = align_tab_to_audio(gt, audio_file, tuning_name=tuning)
+
+    if output is None:
+        output = audio_file.with_suffix(".aligned.json")
+
+    save_aligned_dataset(aligned, output)
+    click.echo(f"\nAligned {len(aligned.notes)} notes")
+    click.echo(f"  BPM:    {aligned.bpm:.1f}")
+    click.echo(f"  Range:  {aligned.notes[0].start_s:.1f}s - {aligned.notes[-1].end_s:.1f}s")
+    click.echo(f"  Output: {output}")
+
+
+@click.command("parse-tab")
+@click.argument("pdf_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Output JSON path.")
+@click.option("--num-strings", default=6, type=int, help="Number of strings (6 or 7).")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
+def parse_tab(pdf_file: Path, output: Path | None, num_strings: int, verbose: bool):
+    """Parse a PDF tablature file into ground truth JSON."""
+    _setup_logging(verbose)
+    from .tab_parser import parse_tab_pdf, save_ground_truth
+
+    gt = parse_tab_pdf(pdf_file, num_strings=num_strings)
+
+    if output is None:
+        output = pdf_file.with_suffix(".ground_truth.json")
+
+    save_ground_truth(gt, output)
+    click.echo(f"\nParsed {len(gt.notes)} notes from {pdf_file.name}")
+    click.echo(f"  Title:  {gt.title}")
+    click.echo(f"  BPM:    {gt.bpm}")
+    click.echo(f"  Tuning: {gt.tuning}")
+    click.echo(f"  Output: {output}")
+
+
 if __name__ == "__main__":
     main()
