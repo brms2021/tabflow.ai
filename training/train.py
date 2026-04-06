@@ -204,7 +204,10 @@ def train_technique_model(data_dir: str, epochs: int = 50, lr: float = 1e-3, bat
     """Train technique classification model."""
     logger.info("=== Training TechniqueNet ===")
 
-    # Find aligned data with technique labels
+    # Source 1: Guitar-TECHS pre-extracted segments
+    segment_dirs = sorted(glob.glob(f"{data_dir}/guitar-techs/P*"))
+
+    # Source 2: Aligned audio data with technique labels
     aligned_files = sorted(glob.glob(f"{data_dir}/**/aligned.json", recursive=True))
     audio_files = []
     valid_aligned = []
@@ -217,11 +220,15 @@ def train_technique_model(data_dir: str, epochs: int = 50, lr: float = 1e-3, bat
             audio_files.append(audio_candidates[0])
             valid_aligned.append(af)
 
-    if not valid_aligned:
-        logger.error("No aligned data found")
+    if not segment_dirs and not valid_aligned:
+        logger.error("No technique data found. Run: python -m training.ingest_guitar_techs")
         return
 
-    dataset = TechniqueDataset(valid_aligned, audio_files)
+    dataset = TechniqueDataset(
+        aligned_json_paths=valid_aligned if valid_aligned else None,
+        audio_paths=audio_files if audio_files else None,
+        segment_dirs=segment_dirs if segment_dirs else None,
+    )
     logger.info("Dataset: %d samples", len(dataset))
 
     # Check class distribution
@@ -242,11 +249,10 @@ def train_technique_model(data_dir: str, epochs: int = 50, lr: float = 1e-3, bat
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
 
-    model = TechniqueNet()
+    num_classes = len(TechniqueDataset.TECHNIQUE_CLASSES)
+    model = TechniqueNet(num_classes=num_classes)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
-    # Class weights for imbalanced data
-    class_counts = torch.zeros(8)
+    class_counts = torch.zeros(num_classes)
     for label in labels:
         class_counts[label] += 1
     weights = 1.0 / (class_counts + 1)

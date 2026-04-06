@@ -136,7 +136,7 @@ class TechniqueNet(nn.Module):
     def __init__(
         self,
         n_mels: int = 128,
-        num_classes: int = 8,
+        num_classes: int = 12,  # matches TechniqueDataset.TECHNIQUE_CLASSES
         dropout: float = 0.3,
     ):
         super().__init__()

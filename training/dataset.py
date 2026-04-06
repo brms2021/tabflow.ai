@@ -178,6 +178,10 @@ class TechniqueDataset(Dataset):
 
     Input: (n_mels, n_frames) mel-spectrogram (200ms window)
     Target: technique class index
+
+    Supports two data sources:
+    1. Aligned JSON + audio pairs (from tab alignment pipeline)
+    2. Guitar-TECHS pre-extracted .npy segments (from ingest_guitar_techs)
     """
 
     TECHNIQUE_CLASSES = [
@@ -189,21 +193,33 @@ class TechniqueDataset(Dataset):
         "tap",
         "harmonic",
         "palm-mute",
+        "vibrato",
+        "pinch-harmonic",
+        "let-ring",
+        "dead-note",
     ]
 
     def __init__(
         self,
-        aligned_json_paths: list[str | Path],
-        audio_paths: list[str | Path],
+        aligned_json_paths: list[str | Path] | None = None,
+        audio_paths: list[str | Path] | None = None,
+        segment_dirs: list[str | Path] | None = None,
         sr: int = 22050,
         n_mels: int = 128,
-        window_ms: float = 200.0,
+        window_ms: float = 400.0,
     ):
         self.sr = sr
         self.n_mels = n_mels
         self.window_samples = int(window_ms / 1000 * sr)
         self.samples: list[tuple[np.ndarray, int]] = []
-        self._load_all(aligned_json_paths, audio_paths)
+
+        # Load from aligned JSON + audio pairs
+        if aligned_json_paths and audio_paths:
+            self._load_all(aligned_json_paths, audio_paths)
+
+        # Load from Guitar-TECHS pre-extracted segments
+        if segment_dirs:
+            self._load_segments(segment_dirs)
 
     def _load_all(self, json_paths: list, audio_paths: list) -> None:
         for json_path, audio_path in zip(json_paths, audio_paths):
@@ -245,6 +261,55 @@ class TechniqueDataset(Dataset):
             mel_db = librosa.power_to_db(mel, ref=np.max)
 
             self.samples.append((mel_db.astype(np.float32), label))
+
+    def _load_segments(self, segment_dirs: list[str | Path]) -> None:
+        """Load pre-extracted .npy audio segments from Guitar-TECHS.
+
+        Directory structure: {dir}/{player}/{technique}/*.npy
+        """
+        for seg_dir in segment_dirs:
+            seg_dir = Path(seg_dir)
+            if not seg_dir.exists():
+                logger.warning("Segment dir not found: %s", seg_dir)
+                continue
+
+            for technique_dir in sorted(seg_dir.rglob("*")):
+                if not technique_dir.is_dir():
+                    continue
+
+                technique = technique_dir.name
+                if technique not in self.TECHNIQUE_CLASSES:
+                    continue
+
+                npy_files = sorted(technique_dir.glob("*.npy"))
+                loaded = 0
+                for npy_path in npy_files:
+                    try:
+                        segment = np.load(npy_path)
+                        label = self.TECHNIQUE_CLASSES.index(technique)
+
+                        # Pad/trim to standard window size
+                        if len(segment) < self.window_samples:
+                            segment = np.pad(segment, (0, self.window_samples - len(segment)))
+                        else:
+                            segment = segment[: self.window_samples]
+
+                        # Compute mel spectrogram
+                        mel = librosa.feature.melspectrogram(
+                            y=segment.astype(np.float32),
+                            sr=self.sr,
+                            n_mels=self.n_mels,
+                            n_fft=1024,
+                            hop_length=256,
+                        )
+                        mel_db = librosa.power_to_db(mel, ref=np.max)
+                        self.samples.append((mel_db.astype(np.float32), label))
+                        loaded += 1
+                    except Exception as e:
+                        logger.debug("Failed to load %s: %s", npy_path.name, e)
+
+                if loaded > 0:
+                    logger.info("Loaded %d %s segments from %s", loaded, technique, technique_dir)
 
     def __len__(self) -> int:
         return len(self.samples)
