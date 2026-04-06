@@ -173,18 +173,30 @@ async def _run_pipeline(job_id: str, input_path: Path, tuning: str, model: str, 
         await update_job(step="Assigning fret positions...", progress=65.0)
         events = await asyncio.to_thread(assign_frets, filtered, tuning=tuning_pitches)
 
-        annotations = None
+        # Technique detection — always use local model (fast, free)
+        await update_job(step="Detecting techniques...", progress=75.0)
+        from tab_ripper.technique_detector import detect_techniques
+
+        events, annotations = await asyncio.to_thread(
+            detect_techniques,
+            events,
+            str(input_path),
+        )
+
+        # Optionally also run LLM for fret refinement
         if enable_llm:
-            await update_job(step="Analyzing techniques (LLM)...", progress=75.0)
+            await update_job(step="Refining with LLM...", progress=82.0)
             from tab_ripper.llm_analyzer import analyze_and_refine
 
-            events, annotations = await asyncio.to_thread(
+            events, llm_annotations = await asyncio.to_thread(
                 analyze_and_refine,
                 events,
                 tuning=tuning_pitches,
                 string_names=string_names,
                 max_phrases=10,
             )
+            if llm_annotations:
+                annotations = (annotations or []) + llm_annotations
 
         await update_job(step="Generating tablature...", progress=90.0)
         note_count = sum(len(e.notes) for e in events)

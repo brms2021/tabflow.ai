@@ -87,8 +87,15 @@ def _setup_logging(verbose: bool) -> None:
 )
 @click.option("--min-note-length", default=50.0, type=float, help="Minimum note duration in ms (filters noise blips).")
 @click.option("--pdf/--no-pdf", default=True, help="Generate PDF tablature output.")
-@click.option("--llm/--no-llm", default=True, help="Use Claude to refine fret assignments and identify techniques.")
-@click.option("--llm-model", default="claude-sonnet-4-6", help="Claude model for technique analysis.")
+@click.option(
+    "--technique",
+    default="local",
+    type=click.Choice(["local", "llm", "none"]),
+    help="Technique detection: local (TechniqueNet CNN, fast), llm (Claude API, slow), none (skip).",
+)
+@click.option(
+    "--llm-model", default="claude-sonnet-4-6", help="Claude model for technique analysis (when --technique=llm)."
+)
 @click.option(
     "--llm-max-phrases",
     default=20,
@@ -115,7 +122,7 @@ def main(
     amplitude_threshold: float,
     min_note_length: float,
     pdf: bool,
-    llm: bool,
+    technique: str,
     llm_model: str,
     llm_max_phrases: int,
     skip_separation: bool,
@@ -154,7 +161,7 @@ def main(
                 amplitude_threshold=amplitude_threshold,
                 min_note_length=min_note_length,
                 pdf=pdf,
-                llm=llm,
+                technique=technique,
                 llm_model=llm_model,
                 llm_max_phrases=llm_max_phrases,
                 skip_separation=skip_separation,
@@ -190,7 +197,7 @@ def _process_file(
     amplitude_threshold: float,
     min_note_length: float,
     pdf: bool,
-    llm: bool,
+    technique: str,
     llm_model: str,
     llm_max_phrases: int,
     skip_separation: bool,
@@ -252,9 +259,14 @@ def _process_file(
     logger.info("Step 4/5: Assigning fret positions (Viterbi)...")
     events = assign_frets(filtered_notes, tuning=tuning_pitches)
 
-    # --- Step 4b: LLM technique analysis ---
+    # --- Step 4b: Technique detection ---
     annotations = None
-    if llm:
+    if technique == "local":
+        logger.info("Step 4b/5: Detecting techniques (local TechniqueNet)...")
+        from .technique_detector import detect_techniques
+
+        events, annotations = detect_techniques(events, guitar_path)
+    elif technique == "llm":
         logger.info("Step 4b/5: Refining with LLM technique analysis...")
         from .llm_analyzer import analyze_and_refine
 
