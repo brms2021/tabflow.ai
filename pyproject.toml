@@ -26,6 +26,7 @@ gp = ["pyguitarpro>=0.9"]
 tab-ripper = "tab_ripper.cli:main"
 tab-ripper-parse = "tab_ripper.cli:parse_tab"
 tab-ripper-align = "tab_ripper.cli:align_tab"
+tab-ripper-parse-gp = "tab_ripper.cli:parse_gp"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

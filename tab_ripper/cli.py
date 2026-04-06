@@ -405,5 +405,36 @@ def parse_tab(pdf_file: Path, output: Path | None, num_strings: int, verbose: bo
     click.echo(f"  Output: {output}")
 
 
+@click.command("parse-gp")
+@click.argument("gp_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Output JSON path.")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
+def parse_gp(gp_file: Path, output: Path | None, verbose: bool):
+    """Parse a Guitar Pro file (.gp3/.gp4/.gp5/.gpx/.gp) into ground truth JSON."""
+    _setup_logging(verbose)
+    from .gp_parser import parse_gp_file, save_gp_ground_truth
+
+    track = parse_gp_file(gp_file)
+
+    if output is None:
+        output = gp_file.with_suffix(".ground_truth.json")
+
+    save_gp_ground_truth(track, output)
+
+    # Technique breakdown
+    from collections import Counter
+
+    techniques = Counter(n.technique for n in track.notes)
+
+    click.echo(f"\nParsed {len(track.notes)} notes from {gp_file.name}")
+    click.echo(f"  Title:      {track.title}")
+    click.echo(f"  Artist:     {track.artist}")
+    click.echo(f"  BPM:        {track.bpm}")
+    click.echo(f"  Tuning:     {track.tuning} ({track.num_strings}-string)")
+    click.echo(f"  Bars:       {track.num_bars}")
+    click.echo(f"  Techniques: {dict(techniques)}")
+    click.echo(f"  Output:     {output}")
+
+
 if __name__ == "__main__":
     main()
