@@ -22,6 +22,11 @@ tab-ripper-output/
 *.pdf
 *.png
 
+# Training data (audio/media gitignored, index committed)
+data/raw/
+data/processed/
+!data/index.json
+
 # OS
 Thumbs.db
 .DS_Store

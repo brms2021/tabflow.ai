@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "tracks": [
+    {
+      "id": "neoclassical-sweep",
+      "title": "Neoclassical Sweep Picking Workout",
+      "artist": "Bernth",
+      "style": ["neoclassical", "sweep-picking"],
+      "tuning": "standard",
+      "strings": 6,
+      "has_audio": true,
+      "has_tab": true,
+      "audio_type": "backing-track",
+      "tab_source": "official",
+      "quality": "high"
+    },
+    {
+      "id": "never-back-down",
+      "title": "08 Never Back Down",
+      "artist": "Unknown",
+      "style": ["metal"],
+      "tuning": "7-string",
+      "strings": 7,
+      "has_audio": true,
+      "has_tab": true,
+      "audio_type": "backing-track",
+      "tab_source": "official",
+      "quality": "medium"
+    },
+    {
+      "id": "enter-through-fire",
+      "title": "Enter Through Fire",
+      "artist": "Unknown",
+      "style": ["metal"],
+      "tuning": "standard",
+      "strings": 6,
+      "has_audio": true,
+      "has_tab": false,
+      "audio_type": "backing-track",
+      "tab_source": null,
+      "quality": "medium"
+    }
+  ]
+}
